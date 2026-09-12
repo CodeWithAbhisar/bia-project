@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+sqlalchemy
+python-dotenv
+pandas
+python-jose[cryptography]
+bcrypt
+requests
+pydantic
+python-multipart
+
