@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, Depends, HTTPException
+from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 import os
@@ -24,8 +24,30 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 # 2. Lock the upload route to require a token, and use the real user ID
 import uuid
 
+def background_process_csv(file_location: str, user_id: int, file_id: int):
+    from models.database import SessionLocal, FileRecord
+    db = SessionLocal()
+    try:
+        from services.etl_service import process_and_load_csv
+        process_and_load_csv(file_location, user_id=user_id, file_id=file_id)
+        
+        # update status
+        record = db.query(FileRecord).filter(FileRecord.id == file_id).first()
+        if record:
+            record.status = "completed"
+            db.commit()
+    except Exception as e:
+        record = db.query(FileRecord).filter(FileRecord.id == file_id).first()
+        if record:
+            record.status = "failed"
+            db.commit()
+    finally:
+        if os.path.exists(file_location):
+            os.remove(file_location)
+        db.close()
+
 @app.post("/api/upload")
-def upload_data(file: UploadFile = File(...), user_id: int = Depends(get_current_user_id), db: Session = Depends(get_db)):
+def upload_data(file: UploadFile = File(...), background_tasks: BackgroundTasks = BackgroundTasks(), user_id: int = Depends(get_current_user_id), db: Session = Depends(get_db)):
     # Generate unique and safe filename to prevent traversal and race conditions
     safe_filename = "".join(c for c in file.filename if c.isalnum() or c in "._-")
     file_location = f"temp_{uuid.uuid4().hex}_{safe_filename}"
@@ -39,34 +61,27 @@ def upload_data(file: UploadFile = File(...), user_id: int = Depends(get_current
             sha256_hash.update(byte_block)
     file_hash = sha256_hash.hexdigest()
     
-    # Check if this exact file was already uploaded by this user
+    # Check if this exact file was already successfully uploaded by this user
     existing_file = db.query(FileRecord).filter(
         FileRecord.user_id == user_id, 
-        FileRecord.file_hash == file_hash
+        FileRecord.file_hash == file_hash,
+        FileRecord.status != "failed"
     ).first()
     
     if existing_file:
         os.remove(file_location)
         raise HTTPException(status_code=400, detail="This exact file has already been uploaded.")
     
-    # Save the record so they can't upload it again
-    new_record = FileRecord(user_id=user_id, file_hash=file_hash, filename=file.filename)
+    # Save the record in "processing" state
+    new_record = FileRecord(user_id=user_id, file_hash=file_hash, filename=file.filename, status="processing")
     db.add(new_record)
     db.commit()
     db.refresh(new_record)
     
-    # Now it dynamically saves data to whoever is logged in!
-    try:
-        result = process_and_load_csv(file_location, user_id=user_id, file_id=new_record.id) 
-    except Exception as e:
-        db.delete(new_record)
-        db.commit()
-        if os.path.exists(file_location):
-            os.remove(file_location)
-        raise HTTPException(status_code=400, detail=f"Failed to process CSV data: {str(e)}")
-        
-    os.remove(file_location) 
-    return result
+    # Queue the background processing!
+    background_tasks.add_task(background_process_csv, file_location, user_id, new_record.id)
+    
+    return {"status": "Processing", "message": "File is successfully queued in the background.", "file_id": new_record.id}
 
 @app.get("/api/user/profile")
 def get_user_profile(user_id: int = Depends(get_current_user_id), db: Session = Depends(get_db)):
@@ -77,7 +92,7 @@ def get_user_profile(user_id: int = Depends(get_current_user_id), db: Session = 
     files = db.query(FileRecord).filter(FileRecord.user_id == user_id).all()
     return {
         "email": user.email,
-        "files": [{"id": f.id, "filename": f.filename} for f in files]
+        "files": [{"id": f.id, "filename": f.filename, "status": f.status} for f in files]
     }
 
 @app.delete("/api/user/files/{file_id}")

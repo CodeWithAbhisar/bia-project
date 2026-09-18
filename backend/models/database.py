@@ -43,6 +43,7 @@ class FileRecord(Base):
     user_id = Column(Integer, index=True)
     file_hash = Column(String, index=True)
     filename = Column(String)
+    status = Column(String, default="completed")
 
 Base.metadata.create_all(bind=engine)
 

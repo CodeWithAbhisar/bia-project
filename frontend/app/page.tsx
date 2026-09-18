@@ -203,25 +203,48 @@ export default function App() {
     try {
       const config = { headers: { Authorization: `Bearer ${token}` } };
       await axios.post((process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000") + "/api/upload", formData, config);
-      alert("ETL Pipeline Success: Data stored dynamically.");
       
-      // Save successful upload and reset states
+      // Reset upload inputs immediately
       setFile(null);
       const fileInput = document.getElementById('dataset-upload') as HTMLInputElement;
       if (fileInput) fileInput.value = "";
-
       setChatLog([]); 
-      await fetchAllData();
-      await fetchProfile();
-    } catch (e: any) {
-        if (e.response && e.response.data && e.response.data.detail) {
-          alert("Upload Error: " + e.response.data.detail);
-        } else {
-          alert("Upload failed. Check terminal for errors.");
+
+      // Poll until processing is complete
+      const pollInterval = setInterval(async () => {
+        try {
+          const res = await axios.get((process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000") + "/api/user/profile", config);
+          setUserProfile(res.data);
+          
+          const isProcessing = res.data.files.some((f: any) => f.status === "processing");
+          
+          if (!isProcessing) {
+            clearInterval(pollInterval);
+            setLoading(false);
+            
+            const hasFailed = res.data.files.some((f: any) => f.status === "failed");
+            if (hasFailed) {
+              alert("Data Processing Failed. Check file format.");
+            } else {
+              alert("Processing Complete! Data ready.");
+              fetchAllData();
+            }
+          }
+        } catch (e) {
+          clearInterval(pollInterval);
+          setLoading(false);
         }
-      }
+      }, 2000);
+      
+    } catch (e: any) {
       setLoading(false);
-    };
+      if (e.response && e.response.data && e.response.data.detail) {
+        alert("Upload Error: " + e.response.data.detail);
+      } else {
+        alert("Upload failed. Check server.");
+      }
+    }
+  };
 
   const handleSendMessage = async () => {
     if (!chatInput.trim()) return;
@@ -1091,13 +1114,18 @@ export default function App() {
                 <div className="space-y-4">
                   {userProfile.files.map((file) => (
                     <div key={file.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100 hover:border-gray-200 transition-colors">
-                      <div className="flex items-center gap-4">
-                        <div className="p-3 bg-white shadow-sm rounded-xl text-gray-600">
-                          <FileText size={20} />
+                        <div className="flex items-center gap-4">
+                          <div className={`p-3 shadow-sm rounded-xl ${file.status === 'failed' ? 'bg-red-100 text-red-600' : 'bg-white text-gray-600'}`}>
+                            <FileText size={20} />
+                          </div>
+                          <div>
+                            <p className="font-semibold text-gray-800">{file.filename}</p>
+                            <p className={`text-xs mt-0.5 font-medium ${file.status === 'processing' ? 'text-blue-500 animate-pulse' : file.status === 'failed' ? 'text-red-500' : 'text-green-500'}`}>
+                              {file.status === 'processing' ? 'Processing in background...' : file.status === 'failed' ? 'Failed processing' : 'Data Ready'}
+                            </p>
+                          </div>
                         </div>
-                        <p className="font-semibold text-gray-800">{file.filename}</p>
-                      </div>
-                      <button onClick={() => handleDeleteFile(file.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Delete file and its data">
+                        <button onClick={() => handleDeleteFile(file.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Delete file and its data">
                         <Trash2 size={20} />
                       </button>
                     </div>
