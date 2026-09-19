@@ -529,7 +529,7 @@ export default function App() {
                 <input 
                   id="dataset-upload"
                   type="file" 
-                  accept=".csv" 
+                  accept=".csv,.pdf,.txt" 
                   onChange={handleFileChange} 
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                 />
@@ -548,7 +548,7 @@ export default function App() {
                         <UploadCloud size={28} className="text-gray-400 group-hover:text-blue-500 transition-colors" />
                       </div>
                       <p className="font-semibold text-gray-700 text-lg mb-1">Select a file</p>
-                      <p className="text-sm mt-1">Maximum file size: 50MB</p>
+                      <p className="text-sm mt-1">Upload Data (CSV) or Documents (PDF, TXT)</p>
                     </div>
                   )}
                 </div>

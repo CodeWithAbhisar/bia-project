@@ -24,12 +24,18 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 # 2. Lock the upload route to require a token, and use the real user ID
 import uuid
 
-def background_process_csv(file_location: str, user_id: int, file_id: int):
+def background_process_file(file_location: str, user_id: int, file_id: int, filename: str):
     from models.database import SessionLocal, FileRecord
     db = SessionLocal()
     try:
-        from services.etl_service import process_and_load_csv
-        process_and_load_csv(file_location, user_id=user_id, file_id=file_id)
+        if filename.lower().endswith('.csv'):
+            from services.etl_service import process_and_load_csv
+            process_and_load_csv(file_location, user_id=user_id, file_id=file_id)
+        elif filename.lower().endswith(('.pdf', '.txt')):
+            from services.vector_service import process_document
+            process_document(file_location, user_id=user_id)
+        else:
+            raise ValueError("Unsupported file type")
         
         # update status
         record = db.query(FileRecord).filter(FileRecord.id == file_id).first()
@@ -79,7 +85,7 @@ def upload_data(file: UploadFile = File(...), background_tasks: BackgroundTasks 
     db.refresh(new_record)
     
     # Queue the background processing!
-    background_tasks.add_task(background_process_csv, file_location, user_id, new_record.id)
+    background_tasks.add_task(background_process_file, file_location, user_id, new_record.id, file.filename)
     
     return {"status": "Processing", "message": "File is successfully queued in the background.", "file_id": new_record.id}
 

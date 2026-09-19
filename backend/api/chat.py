@@ -103,6 +103,15 @@ def chat_with_assistant(
                 f"[AUTOMATED INSIGHTS]{insights_summary}\n"
             )
 
+        # Retrieve Unstructured Documents from Vector DB
+        try:
+            from services.vector_service import search_documents
+            doc_context = search_documents(request.message, user_id)
+            if doc_context:
+                data_context += "\n" + doc_context
+        except Exception:
+            pass
+
         history_text = "\n".join([f"{msg.role.upper()}: {msg.text}" for msg in request.history[-5:]]) if request.history else "No previous history."
 
         system_prompt = f"""
