@@ -247,8 +247,12 @@ export default function App() {
     }
   };
 
+  const isSendingRef = useRef(false);
+
   const handleSendMessage = async () => {
-    if (!chatInput.trim() || isChatLoading || isChatStreaming) return;
+    if (!chatInput.trim() || isChatLoading || isChatStreaming || isSendingRef.current) return;
+    isSendingRef.current = true;
+    
     const userMsg = chatInput;
     setChatLog((prev) => [...prev, { role: "user", text: userMsg }]);
     setChatInput("");
@@ -275,19 +279,22 @@ export default function App() {
       
       setIsChatLoading(false); // Stop loading animation since stream is starting
       
+      let accumulatedText = "";
+      
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         
-        const chunk = decoder.decode(value);
+        const chunk = decoder.decode(value, { stream: true });
+        accumulatedText += chunk;
         
-        // Update the last message in the chat log with the new chunk
+        // Update the last message idempotently
         setChatLog((prev) => {
           const newLog = [...prev];
           const lastMsg = newLog[newLog.length - 1];
           newLog[newLog.length - 1] = {
             ...lastMsg,
-            text: lastMsg.text + chunk
+            text: accumulatedText
           };
           return newLog;
         });
@@ -303,6 +310,7 @@ export default function App() {
       setIsChatLoading(false);
     } finally {
       setIsChatStreaming(false);
+      isSendingRef.current = false;
     }
   };
 
