@@ -33,6 +33,7 @@ export default function App() {
   const [chatInput, setChatInput] = useState("");
   const [chatLog, setChatLog] = useState<{role: string, text: string}[]>([]);
   const [isChatLoading, setIsChatLoading] = useState(false);
+  const [isChatStreaming, setIsChatStreaming] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -247,11 +248,12 @@ export default function App() {
   };
 
   const handleSendMessage = async () => {
-    if (!chatInput.trim()) return;
+    if (!chatInput.trim() || isChatLoading || isChatStreaming) return;
     const userMsg = chatInput;
     setChatLog((prev) => [...prev, { role: "user", text: userMsg }]);
     setChatInput("");
     setIsChatLoading(true);
+    setIsChatStreaming(true);
 
     try {
       // Append an empty AI message to the chat log to stream into
@@ -299,6 +301,8 @@ export default function App() {
         return newLog;
       });
       setIsChatLoading(false);
+    } finally {
+      setIsChatStreaming(false);
     }
   };
 
@@ -1102,13 +1106,14 @@ export default function App() {
                   onChange={(e) => setChatInput(e.target.value)} 
                   onKeyDown={(e) => e.key === "Enter" && handleSendMessage()} 
                   placeholder="Ask a question about your revenue, inventory, or trends..."
-                  className="flex-1 pl-6 pr-16 py-4 bg-gray-50 border border-gray-200 rounded-full text-base outline-none focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all" 
+                  disabled={isChatLoading || isChatStreaming}
+                  className="flex-1 pl-6 pr-16 py-4 bg-gray-50 border border-gray-200 rounded-full text-base outline-none focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all disabled:opacity-50" 
                 />
                 <button 
                   onClick={handleSendMessage} 
-                  disabled={!chatInput.trim()}
+                  disabled={!chatInput.trim() || isChatLoading || isChatStreaming}
                   className={`absolute right-2 p-3 rounded-full flex items-center justify-center transition-all ${
-                    !chatInput.trim() 
+                    (!chatInput.trim() || isChatLoading || isChatStreaming)
                       ? "bg-gray-100 text-gray-400" 
                       : "bg-blue-600 text-white shadow-md hover:bg-blue-700 hover:shadow-lg hover:-translate-y-0.5"
                   }`}
