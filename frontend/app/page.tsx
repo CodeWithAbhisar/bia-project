@@ -254,16 +254,48 @@ export default function App() {
     setIsChatLoading(true);
 
     try {
-      const config = { headers: { Authorization: `Bearer ${token}` } };
-      const res = await axios.post((process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000") + "/api/chat", { 
-        message: userMsg,
-        history: chatLog
-      }, config);
-      setChatLog((prev) => [...prev, { role: "ai", text: res.data.reply }]);
+      // Append an empty AI message to the chat log to stream into
+      setChatLog((prev) => [...prev, { role: "ai", text: "" }]);
+      
+      const response = await fetch((process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000") + "/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ message: userMsg, history: chatLog })
+      });
+
+      if (!response.body) throw new Error("No response body");
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      
+      setIsChatLoading(false); // Stop loading animation since stream is starting
+      
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        const chunk = decoder.decode(value);
+        
+        // Update the last message in the chat log with the new chunk
+        setChatLog((prev) => {
+          const newLog = [...prev];
+          newLog[newLog.length - 1].text += chunk;
+          return newLog;
+        });
+      }
     } catch (e) {
-      setChatLog((prev) => [...prev, { role: "ai", text: "Error reaching AI." }]);
+      setChatLog((prev) => {
+        const newLog = [...prev];
+        if (newLog[newLog.length - 1].text === "") {
+           newLog[newLog.length - 1].text = "Error reaching AI.";
+        }
+        return newLog;
+      });
+      setIsChatLoading(false);
     }
-    setIsChatLoading(false);
   };
 
   const totalUnitsSold = inventoryData.reduce((sum, item) => sum + item.sold, 0);

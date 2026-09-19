@@ -1,14 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from typing import List, Optional
 
 from models.database import get_db, Transaction
 from api.auth import get_current_user_id
-from services.sarvam_client import generate_response
+from services.sarvam_client import generate_response, generate_response_stream
 
 router = APIRouter()
-
-from typing import List, Optional
 
 class ChatMessage(BaseModel):
     role: str
@@ -116,12 +116,7 @@ Previous Conversation Context (last 5 messages):
 
 User question: {request.message}
 """
-        ai_reply = generate_response(system_prompt)
-        
-        if not ai_reply or not str(ai_reply).strip():
-            ai_reply = "I apologize, but I could not generate a response. Please check your network connection or try rephrasing your question."
-            
-        return {"reply": str(ai_reply)}
+        return StreamingResponse(generate_response_stream(system_prompt), media_type="text/event-stream")
 
     except Exception as e:
-        return {"reply": f"An internal server error occurred: {str(e)}"}
+        return StreamingResponse(iter([f"An internal server error occurred: {str(e)}"]), media_type="text/event-stream")
