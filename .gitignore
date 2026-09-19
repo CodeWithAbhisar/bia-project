@@ -1,4 +1,4 @@
-# Node
+﻿# Node
 node_modules/
 .next/
 out/
@@ -17,6 +17,8 @@ env/
 # Database
 *.db
 *.sqlite3
+chroma_db/
+pgdata/
 
 # Temporary
 temp_*
