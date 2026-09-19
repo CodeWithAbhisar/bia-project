@@ -282,7 +282,11 @@ export default function App() {
         // Update the last message in the chat log with the new chunk
         setChatLog((prev) => {
           const newLog = [...prev];
-          newLog[newLog.length - 1].text += chunk;
+          const lastMsg = newLog[newLog.length - 1];
+          newLog[newLog.length - 1] = {
+            ...lastMsg,
+            text: lastMsg.text + chunk
+          };
           return newLog;
         });
       }
