@@ -5,13 +5,20 @@ import os
 
 # Reads DATABASE_URL from environment variable.
 # Local dev: sqlite:///./sql_app.db  (auto-fallback)
-# Production (Supabase/Neon): postgresql+psycopg://user:pass@host/db?sslmode=require
+# Production (Supabase): postgresql://user:pass@host/db
 SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./sql_app.db")
 
-# Supabase gives a URL starting with "postgres://" — SQLAlchemy needs "postgresql+psycopg://"
+# Fix URL prefixes so SQLAlchemy + psycopg3 works correctly:
+# "postgres://"       → "postgresql+psycopg://"  (Supabase/Heroku style)
+# "postgresql://"     → "postgresql+psycopg://"  (standard style)
+# "postgresql+psycopg://" → keep as-is (already correct)
 if SQLALCHEMY_DATABASE_URL.startswith("postgres://"):
     SQLALCHEMY_DATABASE_URL = SQLALCHEMY_DATABASE_URL.replace(
         "postgres://", "postgresql+psycopg://", 1
+    )
+elif SQLALCHEMY_DATABASE_URL.startswith("postgresql://"):
+    SQLALCHEMY_DATABASE_URL = SQLALCHEMY_DATABASE_URL.replace(
+        "postgresql://", "postgresql+psycopg://", 1
     )
 
 is_sqlite = "sqlite" in SQLALCHEMY_DATABASE_URL
