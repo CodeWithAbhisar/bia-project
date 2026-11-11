@@ -3,13 +3,22 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import os
 
-# Adjust this URL if you are using PostgreSQL directly
-SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./sql_app.db") 
+# Reads DATABASE_URL from environment variable.
+# Local dev: sqlite:///./sql_app.db  (auto-fallback)
+# Production (Supabase/Neon): postgresql+psycopg://user:pass@host/db?sslmode=require
+SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./sql_app.db")
 
-# connect_args is needed for SQLite, ignored by Postgres
+# Supabase gives a URL starting with "postgres://" — SQLAlchemy needs "postgresql+psycopg://"
+if SQLALCHEMY_DATABASE_URL.startswith("postgres://"):
+    SQLALCHEMY_DATABASE_URL = SQLALCHEMY_DATABASE_URL.replace(
+        "postgres://", "postgresql+psycopg://", 1
+    )
+
+is_sqlite = "sqlite" in SQLALCHEMY_DATABASE_URL
+
 engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, 
-    connect_args={"check_same_thread": False} if "sqlite" in SQLALCHEMY_DATABASE_URL else {}
+    SQLALCHEMY_DATABASE_URL,
+    connect_args={"check_same_thread": False} if is_sqlite else {},
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
