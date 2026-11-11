@@ -19,6 +19,8 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, index=True)
     hashed_password = Column(String)
+    full_name = Column(String, nullable=True)
+    company = Column(String, nullable=True)
 
 class Transaction(Base):
     __tablename__ = "transactions"

@@ -1,4 +1,4 @@
-﻿import requests
+import requests
 import json
 import os
 import time
@@ -41,8 +41,9 @@ def generate_response_stream(prompt: str):
                         break
                     try:
                         data = json.loads(data_str)
-                        if data['choices'][0]['delta'].get('content'):
-                            yield data['choices'][0]['delta']['content']
+                        if data.get('choices') and len(data['choices']) > 0:
+                            if data['choices'][0].get('delta', {}).get('content'):
+                                yield data['choices'][0]['delta']['content']
                     except json.JSONDecodeError:
                         pass
     except requests.exceptions.RequestException as e:

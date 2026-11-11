@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { UploadCloud, LayoutDashboard, DollarSign, Package, MessageSquare, Bell, Send, CheckCircle, AlertTriangle, Info, LogOut, Lock, Search, X, Copy, Check, Sparkles, TrendingUp, Database, FileText, User, Trash2, Menu } from "lucide-react";
@@ -10,7 +10,8 @@ export default function App() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [name, setName] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [company, setCompany] = useState("");
   const [termsAccepted, setTermsAccepted] = useState(false);
 
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -65,11 +66,13 @@ export default function App() {
       const res = await axios.get((process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000") + "/api/user/profile", config);
       setUserProfile(res.data);
     } catch (e: any) {
-      console.error("Failed to fetch profile");
       if (e.response && (e.response.status === 401 || e.response.status === 404)) {
         localStorage.removeItem("token");
+        setUserProfile(null);
         setToken(null);
+        return;
       }
+      console.warn("Failed to fetch profile:", e?.message || e);
     }
   };
 
@@ -95,6 +98,16 @@ export default function App() {
       return;
     }
     
+    if (authMode === "register" && password !== confirmPassword) {
+      setAuthError("Passwords do not match. Please try again.");
+      return;
+    }
+    
+    if (authMode === "register" && !termsAccepted) {
+      setAuthError("You must accept the Terms of Service to create an account.");
+      return;
+    }
+    
     // Catch common typos for popular domains
     const domain = email.split('@')[1].toLowerCase();
     const invalidDomains = ['gmail.co', 'gmail.con', 'gmail.com.co', 'yaho.com', 'yahoo.co', 'hotmail.co'];
@@ -105,7 +118,12 @@ export default function App() {
 
     try {
       if (authMode === "register") {
-        await axios.post((process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000") + "/api/auth/register", { email, password });
+        await axios.post((process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000") + "/api/auth/register", { 
+          email, 
+          password,
+          full_name: fullName || undefined,
+          company: company || undefined
+        });
         alert("Account created successfully! Please log in.");
         setAuthMode("login");
       } else {
@@ -142,6 +160,7 @@ export default function App() {
 
   const handleLogout = () => {
     setToken(null);
+    setUserProfile(null);
     localStorage.removeItem("token");
     setOverviewData(null);
     setCashflowData(null);
@@ -249,20 +268,34 @@ export default function App() {
 
   const isSendingRef = useRef(false);
 
+  const processedInventoryData = useMemo(() => {
+    const sorted = [...inventoryData].sort((a, b) => b.sold - a.sold);
+    if (sorted.length <= 15) return sorted;
+    const top = sorted.slice(0, 14);
+    const rest = sorted.slice(14);
+    const other = rest.reduce((acc, curr) => ({
+      category: "Other",
+      sold: acc.sold + curr.sold,
+      remaining: acc.remaining + curr.remaining,
+      stock_value: acc.stock_value + curr.stock_value,
+      sell_through_rate: 0,
+      dio: 0,
+      status: "Mixed"
+    }), { category: "Other", sold: 0, remaining: 0, stock_value: 0, sell_through_rate: 0, dio: 0, status: "Mixed" });
+    return [...top, other];
+  }, [inventoryData]);
+
   const handleSendMessage = async () => {
     if (!chatInput.trim() || isChatLoading || isChatStreaming || isSendingRef.current) return;
     isSendingRef.current = true;
     
     const userMsg = chatInput;
-    setChatLog((prev) => [...prev, { role: "user", text: userMsg }]);
+    setChatLog((prev) => [...prev, { role: "user", text: userMsg }, { role: "ai", text: "" }]);
     setChatInput("");
     setIsChatLoading(true);
     setIsChatStreaming(true);
 
     try {
-      // Append an empty AI message to the chat log to stream into
-      setChatLog((prev) => [...prev, { role: "ai", text: "" }]);
-      
       const response = await fetch((process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000") + "/api/chat", {
         method: "POST",
         headers: {
@@ -288,6 +321,7 @@ export default function App() {
         const chunk = decoder.decode(value, { stream: true });
         accumulatedText += chunk;
         
+        // Update the last message in the chat log with the new chunk
         // Update the last message idempotently
         setChatLog((prev) => {
           const newLog = [...prev];
@@ -302,8 +336,11 @@ export default function App() {
     } catch (e) {
       setChatLog((prev) => {
         const newLog = [...prev];
-        if (newLog[newLog.length - 1].text === "") {
-           newLog[newLog.length - 1].text = "Error reaching AI.";
+        const lastMsg = newLog[newLog.length - 1];
+        if (lastMsg && lastMsg.role === "ai" && lastMsg.text === "") {
+           newLog[newLog.length - 1] = { ...lastMsg, text: "Error reaching AI." };
+        } else {
+           newLog.push({ role: "ai", text: "Error reaching AI." });
         }
         return newLog;
       });
@@ -347,11 +384,11 @@ export default function App() {
 
   if (!token) {
     return (
-      <div className="flex min-h-screen bg-gradient-to-br from-indigo-50 via-white to-cyan-50 items-center justify-center p-4 py-12 relative">
+      <div className="flex min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50 items-start pt-[12vh] justify-center p-4 relative overflow-hidden">
         {/* Abstract background shapes */}
-        <div className="absolute top-0 -left-4 w-72 h-72 bg-purple-300 rounded-full mix-blend-multiply filter blur-2xl opacity-70 animate-blob"></div>
-        <div className="absolute top-0 -right-4 w-72 h-72 bg-yellow-300 rounded-full mix-blend-multiply filter blur-2xl opacity-70 animate-blob animation-delay-2000"></div>
-        <div className="absolute -bottom-8 left-20 w-72 h-72 bg-pink-300 rounded-full mix-blend-multiply filter blur-2xl opacity-70 animate-blob animation-delay-4000"></div>
+        <div className="absolute top-0 -left-4 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-[80px] opacity-60 animate-blob"></div>
+        <div className="absolute top-0 -right-4 w-96 h-96 bg-cyan-200 rounded-full mix-blend-multiply filter blur-[80px] opacity-60 animate-blob animation-delay-2000"></div>
+        <div className="absolute -bottom-8 left-20 w-96 h-96 bg-indigo-300 rounded-full mix-blend-multiply filter blur-[80px] opacity-60 animate-blob animation-delay-4000"></div>
         
         <div className="glass-card p-10 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] w-full max-w-[420px] relative z-10">
           <div className="flex flex-col items-center justify-center mb-8">
@@ -381,13 +418,20 @@ export default function App() {
           {authError && <div className="mb-5 p-3 bg-red-50 border border-red-200 text-red-600 rounded-lg text-sm text-center font-medium flex items-center justify-center gap-2"><AlertTriangle size={16}/>{authError}</div>}
           
           <form onSubmit={handleAuth} className="flex flex-col gap-4">
-            {authMode === "register" && (
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Full Name</label>
-                <input type="text" placeholder="John Doe" value={name} onChange={(e) => setName(e.target.value)} className="w-full p-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all" required />
-              </div>
-            )}
             
+            {authMode === "register" && (
+              <>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Full Name</label>
+                  <input type="text" placeholder="John Doe" value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full p-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all" required />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Company Name</label>
+                  <input type="text" placeholder="Acme Corp" value={company} onChange={(e) => setCompany(e.target.value)} className="w-full p-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all" required />
+                </div>
+              </>
+            )}
+
             <div>
               <label className="block text-xs font-semibold text-gray-700 mb-1">Email Address</label>
               <input type="email" placeholder="you@company.com" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full p-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all" required />
@@ -398,13 +442,13 @@ export default function App() {
                 <label className="block text-xs font-semibold text-gray-700">Password</label>
                 {authMode === "login" && <a href="#" className="text-xs font-semibold text-blue-600 hover:text-blue-700">Forgot password?</a>}
               </div>
-              <input type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full p-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all" required />
+              <input type="password" placeholder="********" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full p-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all" required />
             </div>
 
             {authMode === "register" && (
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">Confirm Password</label>
-                <input type="password" placeholder="••••••••" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="w-full p-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all" required />
+                <input type="password" placeholder="********" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="w-full p-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all" required />
               </div>
             )}
 
@@ -539,7 +583,7 @@ export default function App() {
                 <UploadCloud size={36} className="animate-bounce" />
               </div>
               <h2 className="text-3xl font-extrabold mb-2 text-transparent bg-clip-text bg-gradient-to-r from-blue-700 to-indigo-800 tracking-tight">Upload Dataset</h2>
-              <p className="text-gray-500 mb-8 text-sm font-medium">Drag and drop your <strong className="text-indigo-600">.csv</strong> file to begin</p>
+              <p className="text-gray-500 mb-8 text-sm font-medium">Drag and drop your <strong className="text-indigo-600">.csv, .pdf, or .txt</strong> file to begin</p>
               
               <div className="w-full relative group">
                 <input 
@@ -547,9 +591,14 @@ export default function App() {
                   type="file" 
                   accept=".csv,.pdf,.txt" 
                   onChange={handleFileChange} 
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                  disabled={loading}
+                  className={`absolute inset-0 w-full h-full opacity-0 z-10 ${loading ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                 />
-                <div className={`border-2 border-dashed rounded-2xl p-10 transition-all duration-200 ease-in-out ${file ? 'border-blue-500 bg-blue-50/50 shadow-sm' : 'border-gray-200 bg-gray-50 group-hover:border-blue-400 group-hover:bg-blue-50/30'}`}>
+                <div className={`border-2 border-dashed rounded-2xl p-10 transition-all duration-200 ease-in-out ${
+                  loading ? 'border-gray-300 bg-gray-100 opacity-70' :
+                  file ? 'border-blue-500 bg-blue-50/50 shadow-sm' : 
+                  'border-gray-200 bg-gray-50 group-hover:border-blue-400 group-hover:bg-blue-50/30'
+                }`}>
                   {file ? (
                     <div className="flex flex-col items-center animate-in zoom-in-95 duration-200">
                       <div className="bg-white p-3 rounded-xl shadow-sm mb-4">
@@ -621,7 +670,7 @@ export default function App() {
                   <DollarSign size={20} className="text-green-600" />
                 </div>
                 <p className="text-gray-500 font-medium mb-1 text-sm">Total Revenue</p>
-                <p className="text-3xl font-extrabold text-gray-900 truncate" title={String(overviewData.kpis.total_revenue)}>
+                <p className="text-3xl font-extrabold text-gray-900" title={String(overviewData.kpis.total_revenue)}>
                   ${formatCompact(overviewData.kpis.total_revenue)}
                 </p>
               </div>
@@ -634,8 +683,8 @@ export default function App() {
                   <TrendingUp size={20} className={overviewData.kpis.mom_growth >= 0 ? 'text-emerald-600' : 'text-red-600'} />
                 </div>
                 <p className="text-gray-500 font-medium mb-1 text-sm">MoM Growth</p>
-                <div className="flex items-baseline gap-2">
-                  <p className="text-3xl font-extrabold text-gray-900 truncate">
+                <div className="flex flex-wrap items-baseline gap-2">
+                  <p className="text-3xl font-extrabold text-gray-900">
                     {overviewData.kpis.mom_growth >= 0 ? '+' : ''}{overviewData.kpis.mom_growth}%
                   </p>
                   <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${overviewData.kpis.mom_growth >= 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
@@ -652,7 +701,7 @@ export default function App() {
                   <Package size={20} className="text-blue-600" />
                 </div>
                 <p className="text-gray-500 font-medium mb-1 text-sm">Total Units</p>
-                <p className="text-3xl font-extrabold text-gray-900 truncate" title={String(totalUnitsSold)}>
+                <p className="text-3xl font-extrabold text-gray-900" title={String(totalUnitsSold)}>
                   {formatCompact(totalUnitsSold)}
                 </p>
               </div>
@@ -665,7 +714,7 @@ export default function App() {
                   <Sparkles size={20} className="text-purple-600" />
                 </div>
                 <p className="text-gray-500 font-medium mb-1 text-sm">Avg. Order Value</p>
-                <p className="text-3xl font-extrabold text-gray-900 truncate" title={String(avgUnitValue)}>
+                <p className="text-3xl font-extrabold text-gray-900" title={String(avgUnitValue)}>
                   ${formatCompact(avgUnitValue)}
                 </p>
               </div>
@@ -678,7 +727,7 @@ export default function App() {
                   <Database size={20} className="text-indigo-600" />
                 </div>
                 <p className="text-gray-500 font-medium mb-1 text-sm">Avg. CLV</p>
-                <p className="text-3xl font-extrabold text-gray-900 truncate" title={String(overviewData.kpis.clv)}>
+                <p className="text-3xl font-extrabold text-gray-900" title={String(overviewData.kpis.clv)}>
                   ${formatCompact(overviewData.kpis.clv)}
                 </p>
               </div>
@@ -694,9 +743,9 @@ export default function App() {
                   </div>
                 </div>
                 <div className="flex-1 w-full min-h-0 overflow-x-auto overflow-y-hidden">
-                  <div className="min-w-[600px] h-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={overviewData.revenue_trend} margin={{ top: 10, right: 20, left: 0, bottom: 20 }}>
+                    <div className="w-full h-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={overviewData.revenue_trend} margin={{ top: 10, right: 20, left: 0, bottom: 20 }}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
                         <XAxis dataKey="date" stroke="#9ca3af" axisLine={false} tickLine={false} />
                         <YAxis 
@@ -725,9 +774,9 @@ export default function App() {
                   </div>
                 </div>
                 <div className="flex-1 w-full min-h-0 overflow-x-auto overflow-y-hidden">
-                  <div className="min-w-[600px] h-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={inventoryData} margin={{ top: 10, right: 20, left: 0, bottom: 60 }}>
+                    <div className="w-full h-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={processedInventoryData} margin={{ top: 10, right: 20, left: 0, bottom: 60 }}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
                         <XAxis 
                           dataKey="category" 
@@ -767,9 +816,9 @@ export default function App() {
             <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100/50 h-[450px] flex flex-col hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
               <h3 className="text-xl font-bold text-gray-900 mb-6">Cumulative Business Growth</h3>
                 <div className="flex-1 w-full min-h-0 overflow-x-auto overflow-y-hidden">
-                  <div className="min-w-[600px] h-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={cumulativeCashflow} margin={{ top: 10, right: 10, left: 0, bottom: 20 }}>
+                    <div className="w-full h-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={cumulativeCashflow} margin={{ top: 10, right: 10, left: 0, bottom: 20 }}>
                         <defs>
                           <linearGradient id="colorBalance" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
@@ -1060,48 +1109,50 @@ export default function App() {
                   </p>
                 </div>
               ) : (
-                chatLog.map((msg, i) => (
-                  <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"} animate-in slide-in-from-bottom-2 duration-300`}>
-                    <div className="flex items-end gap-3 max-w-[80%]">
-                      {msg.role === "ai" && (
-                        <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0 mb-1">
-                          <Sparkles size={14} className="text-blue-600" />
+                chatLog.map((msg, i) => {
+                  let cleanText = msg.text || "";
+                  const isThinking = (cleanText.match(/<think>/gi) || []).length > (cleanText.match(/<\/think>/gi) || []).length;
+                  cleanText = cleanText.replace(/<think>[\s\S]*?(<\/think>|$)/gi, '').trim();
+
+                  return (
+                    <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"} animate-in slide-in-from-bottom-2 duration-300`}>
+                      <div className="flex items-end gap-3 max-w-[80%]">
+                        {msg.role === "ai" && (
+                          <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0 mb-1">
+                            <Sparkles size={14} className="text-blue-600" />
+                          </div>
+                        )}
+                        <div className={`p-4 rounded-2xl shadow-sm text-[15px] leading-relaxed whitespace-pre-wrap ${
+                          msg.role === "user" 
+                            ? "bg-blue-600 text-white rounded-br-sm" 
+                            : "bg-white border border-gray-100 text-gray-800 rounded-bl-sm"
+                        }`}>
+                          {msg.role === "ai" && isChatLoading && i === chatLog.length - 1 && (
+                            <div className="flex gap-1 items-center h-5 px-2">
+                              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                            </div>
+                          )}
+                          {msg.role === "ai" && isThinking && !isChatLoading && isChatStreaming && i === chatLog.length - 1 && (
+                            <div className="text-xs text-gray-400 italic mb-3 animate-pulse font-medium border-b border-gray-100 pb-2">Analyzing data context...</div>
+                          )}
+                          {cleanText.split(/(\*\*.*?\*\*)/g).map((part, partIdx) => {
+                            if (part.startsWith('**') && part.endsWith('**')) {
+                              return <strong key={partIdx}>{part.slice(2, -2)}</strong>;
+                            }
+                            return <span key={partIdx}>{part}</span>;
+                          })}
                         </div>
-                      )}
-                      <div className={`p-4 rounded-2xl shadow-sm text-[15px] leading-relaxed whitespace-pre-wrap ${
-                        msg.role === "user" 
-                          ? "bg-blue-600 text-white rounded-br-sm" 
-                          : "bg-white border border-gray-100 text-gray-800 rounded-bl-sm"
-                      }`}>
-                        {(msg.text || "").split(/(\*\*.*?\*\*)/g).map((part, partIdx) => {
-                          if (part.startsWith('**') && part.endsWith('**')) {
-                            return <strong key={partIdx}>{part.slice(2, -2)}</strong>;
-                          }
-                          return <span key={partIdx}>{part}</span>;
-                        })}
+                        {msg.role === "user" && (
+                          <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0 mb-1">
+                            <span className="text-xs font-bold text-gray-500">YOU</span>
+                          </div>
+                        )}
                       </div>
-                      {msg.role === "user" && (
-                        <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0 mb-1">
-                          <span className="text-xs font-bold text-gray-500">YOU</span>
-                        </div>
-                      )}
                     </div>
-                  </div>
-                ))
-              )}
-              {isChatLoading && (
-                <div className="flex justify-start animate-in slide-in-from-bottom-2 duration-300">
-                  <div className="flex items-end gap-3 max-w-[80%]">
-                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0 mb-1">
-                      <Sparkles size={14} className="text-blue-600 animate-pulse" />
-                    </div>
-                    <div className="p-4 rounded-2xl shadow-sm bg-white border border-gray-100 rounded-bl-sm flex gap-1 items-center h-[52px]">
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                    </div>
-                  </div>
-                </div>
+                  );
+                })
               )}
               <div ref={chatEndRef} />
             </div>

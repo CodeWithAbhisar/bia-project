@@ -79,8 +79,20 @@ def chat_with_assistant(
             insights_summary = "\n  * ".join([f"{i['title']}: {i['description']}" for i in insights_data.get('insights', [])])
             if insights_summary: insights_summary = "\n  * " + insights_summary
 
+            # Fetch User Profile Details
+            from models.database import User
+            user_profile = db.query(User).filter(User.id == user_id).first()
+            user_display = "the user"
+            if user_profile:
+                if user_profile.full_name and user_profile.company:
+                    user_display = f"{user_profile.full_name} from {user_profile.company}"
+                elif user_profile.full_name:
+                    user_display = user_profile.full_name
+                else:
+                    user_display = f"User {user_id}"
+
             data_context = (
-                f"Current Dataset Summary for User {user_id}:\n"
+                f"Current Dataset Summary for {user_display}:\n"
                 f"- Total Records (Units): {total_rows}\n"
                 f"- Revenue by Category: {cat_summary}\n"
                 f"- Original CSV Columns: {', '.join(original_columns)}\n"

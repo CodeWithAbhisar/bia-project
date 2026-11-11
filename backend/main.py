@@ -43,6 +43,8 @@ def background_process_file(file_location: str, user_id: int, file_id: int, file
             record.status = "completed"
             db.commit()
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         record = db.query(FileRecord).filter(FileRecord.id == file_id).first()
         if record:
             record.status = "failed"

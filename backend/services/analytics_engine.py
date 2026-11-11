@@ -19,7 +19,11 @@ def get_overview_data(db: Session, user_id: int):
 
     if not df.empty:
         # Flexible parser to handle mixed date formats (e.g., DD/MM/YYYY or YYYY-MM-DD)
-        df['date'] = pd.to_datetime(df['date'], format='mixed', dayfirst=True)
+        # Use errors='coerce' so unparseable garbage (like 'UNKNOWN') becomes NaT instead of a fatal crash
+        df['date'] = pd.to_datetime(df['date'], format='mixed', dayfirst=True, errors='coerce')
+        
+        # Drop rows where date is NaT to prevent further downstream errors
+        df = df.dropna(subset=['date'])
         
         # Sort chronologically so the line chart renders smoothly left-to-right
         df = df.sort_values(by='date')
@@ -40,7 +44,7 @@ def get_overview_data(db: Session, user_id: int):
         prev_rev = float(df[(df['date'] > prev_month_start) & (df['date'] <= current_month_start)]['revenue'].sum())
         
         if prev_rev > 0:
-            mom_growth = float(((current_rev - prev_rev) / prev_rev) * 100)
+            mom_growth = round(float(((current_rev - prev_rev) / prev_rev) * 100), 1)
         elif current_rev > 0:
             mom_growth = 100.0 
 
@@ -83,22 +87,21 @@ def get_cashflow_data(db: Session, user_id: int):
     has_cost = False
     has_net = False
     
-    # Extract dynamic metrics from raw JSON data
-    raw_txs = db.query(Transaction.raw_data).filter(Transaction.user_id == user_id).all()
-    for (raw_json,) in raw_txs:
-        if raw_json:
-            if 'cost' in raw_json:
-                has_cost = True
-                try:
-                    total_cost += float(raw_json['cost'])
-                except:
-                    pass
-            if 'net_profit' in raw_json:
-                has_net = True
-                try:
-                    total_net += float(raw_json['net_profit'])
-                except:
-                    pass
+    # Extract dynamic metrics directly inside the Database engine for massive speedup
+    from sqlalchemy import cast, Float
+    first_tx = db.query(Transaction.raw_data).filter(Transaction.user_id == user_id).first()
+    if first_tx and first_tx[0]:
+        raw_json = first_tx[0]
+        cost_key = next((k for k in raw_json.keys() if any(sub in str(k).lower() for sub in ['cost', 'cogs', 'expense'])), None)
+        net_key = next((k for k in raw_json.keys() if any(sub in str(k).lower() for sub in ['profit', 'net', 'earning', 'margin'])), None)
+        
+        if cost_key:
+            has_cost = True
+            total_cost = db.query(func.sum(cast(Transaction.raw_data[cost_key].as_string(), Float))).filter(Transaction.user_id == user_id).scalar() or 0.0
+        
+        if net_key:
+            has_net = True
+            total_net = db.query(func.sum(cast(Transaction.raw_data[net_key].as_string(), Float))).filter(Transaction.user_id == user_id).scalar() or 0.0
 
     if has_cost and total_rev > 0:
         gross_margin = round(((total_rev - total_cost) / total_rev) * 100, 2)

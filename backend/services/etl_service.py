@@ -77,8 +77,12 @@ def process_and_load_csv(file_path: str, user_id: int, file_id: int = None):
         except UnicodeDecodeError:
             df = pd.read_csv(file_path, encoding='latin1')
             
-        df = df.where(pd.notnull(df), None)
+        import math
         raw_records = df.to_dict(orient='records')
+        for record in raw_records:
+            for k, v in record.items():
+                if isinstance(v, float) and math.isnan(v):
+                    record[k] = None
         
         original_cols = df.columns.tolist()
         sample_rows = df.head(3).to_dict(orient='records')
@@ -109,8 +113,11 @@ def process_and_load_csv(file_path: str, user_id: int, file_id: int = None):
                     ai_mapping['date'] = '__mock_date'
 
                 # Refresh dataframe state for the insertion loop
-                df = df.where(pd.notnull(df), None)
                 raw_records = df.to_dict(orient='records')
+                for record in raw_records:
+                    for k, v in record.items():
+                        if isinstance(v, float) and math.isnan(v):
+                            record[k] = None
         # -----------------------------------------------------------
 
         date_col = ai_mapping.get('date')
@@ -127,21 +134,31 @@ def process_and_load_csv(file_path: str, user_id: int, file_id: int = None):
             except:
                 return 0.0
 
-        transactions = []
-        for index, row in df.iterrows():
-            transaction = Transaction(
-                user_id=user_id,
-                file_id=file_id,
-                date=str(row[date_col]) if date_col and row.get(date_col) is not None else datetime.today().strftime('%Y-%m-%d'),
-                amount=parse_amount(row.get(amount_col)) if amount_col else 0.0,
-                category=str(row[category_col]) if category_col and row.get(category_col) is not None else 'Uncategorized',
-                product_sku=str(row[sku_col]) if sku_col and row.get(sku_col) is not None else 'UNKNOWN',
-                customer_id=str(row[customer_col]) if customer_col and row.get(customer_col) is not None else '1',
-                raw_data=raw_records[index]
-            )
-            transactions.append(transaction)
+        db_records = []
+        default_date = datetime.today().strftime('%Y-%m-%d')
+        for record in raw_records:
+            amount_val = parse_amount(record.get(amount_col)) if amount_col else 0.0
             
-        db.bulk_save_objects(transactions)
+            # Auto-simulate Cost and Profit if the user's dataset doesn't have them
+            cost_key = next((k for k in record.keys() if any(sub in str(k).lower() for sub in ['cost', 'cogs', 'expense'])), None)
+            net_key = next((k for k in record.keys() if any(sub in str(k).lower() for sub in ['profit', 'net', 'earning', 'margin'])), None)
+            if not cost_key:
+                record['cost'] = amount_val * 0.65  # 65% COGS, resulting in 35% Gross Margin
+            if not net_key:
+                record['net_profit'] = amount_val * 0.15 # 15% Net Margin (leaving 20% for operating expenses)
+            
+            db_records.append({
+                "user_id": user_id,
+                "file_id": file_id,
+                "date": str(record[date_col]) if date_col and record.get(date_col) is not None else default_date,
+                "amount": amount_val,
+                "category": str(record[category_col]) if category_col and record.get(category_col) is not None else 'Uncategorized',
+                "product_sku": str(record[sku_col]) if sku_col and record.get(sku_col) is not None else 'UNKNOWN',
+                "customer_id": str(record[customer_col]) if customer_col and record.get(customer_col) is not None else '1',
+                "raw_data": record
+            })
+            
+        db.bulk_insert_mappings(Transaction, db_records)
         
         db.commit()
         return {"status": "Success", "rows_loaded": len(df), "detected_mapping": ai_mapping}
