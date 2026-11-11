@@ -4,17 +4,24 @@ node_modules/
 out/
 build/
 npm-debug.log
+
+# Environment & Secrets - NEVER commit these
+.env
 .env.local
 .env.*.local
+.env.production
+.env.staging
+backend/.env
+backend/.env.*
 
 # Python
 __pycache__/
 *.pyc
 venv/
 env/
-.env
+.venv/
 
-# Database
+# Database files - never commit local DB files
 *.db
 *.sqlite3
 chroma_db/

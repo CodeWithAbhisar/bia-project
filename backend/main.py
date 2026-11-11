@@ -19,7 +19,19 @@ from api.inventory import router as inventory_router
 from api.insights import router as insights_router
 
 app = FastAPI()
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+# Allow all origins in development. In production, set ALLOWED_ORIGINS env var
+# to a comma-separated list e.g. "https://your-app.vercel.app"
+_allowed_origins = os.getenv("ALLOWED_ORIGINS", "*")
+origins = [o.strip() for o in _allowed_origins.split(",")] if _allowed_origins != "*" else ["*"]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    allow_credentials=True,
+)
 
 # 2. Lock the upload route to require a token, and use the real user ID
 import uuid
