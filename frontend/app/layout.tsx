@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -23,7 +24,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} antialiased`} suppressHydrationWarning>
-      <body className="overflow-x-hidden">{children}</body>
+      <body className="overflow-x-hidden">
+        <Script src="https://accounts.google.com/gsi/client" strategy="afterInteractive" />
+        {children}
+      </body>
     </html>
   );
 }
