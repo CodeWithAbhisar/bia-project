@@ -20,14 +20,11 @@ from api.insights import router as insights_router
 
 app = FastAPI()
 
-# Allow all origins in development. In production, set ALLOWED_ORIGINS env var
-# to a comma-separated list e.g. "https://your-app.vercel.app"
-_allowed_origins = os.getenv("ALLOWED_ORIGINS", "*")
-origins = [o.strip() for o in _allowed_origins.split(",")] if _allowed_origins != "*" else ["*"]
-
+# Allow all origins and any vercel preview/production domain
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"],
+    allow_origin_regex=r".*",
     allow_methods=["*"],
     allow_headers=["*"],
     allow_credentials=True,

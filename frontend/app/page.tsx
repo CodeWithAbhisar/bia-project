@@ -1,8 +1,8 @@
 "use client";
 import { useState, useEffect, useRef, useMemo } from "react";
 
-// Central API base URL — reads from env var if provided, or empty string for same-origin (/api/*)
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
+// Central API base URL — empty string routes through Next.js /api rewrite proxy (zero CORS issues)
+const API_BASE = "";
 import axios from "axios";
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { UploadCloud, LayoutDashboard, DollarSign, Package, MessageSquare, Bell, Send, CheckCircle, AlertTriangle, Info, LogOut, Search, X, Copy, Check, Sparkles, TrendingUp, Database, FileText, User, Trash2, Menu } from "lucide-react";
