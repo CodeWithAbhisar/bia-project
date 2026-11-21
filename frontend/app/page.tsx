@@ -1,15 +1,19 @@
 "use client";
 import { useState, useEffect, useRef, useMemo } from "react";
 
-// Central API base URL — reads from env var on Vercel/Railway, falls back to localhost for local dev.
-// On Vercel, set NEXT_PUBLIC_API_URL to your backend URL in Project Settings → Environment Variables.
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+// Central API base URL — reads from env var if provided, or empty string for same-origin (/api/*)
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 import axios from "axios";
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { UploadCloud, LayoutDashboard, DollarSign, Package, MessageSquare, Bell, Send, CheckCircle, AlertTriangle, Info, LogOut, Lock, Search, X, Copy, Check, Sparkles, TrendingUp, Database, FileText, User, Trash2, Menu } from "lucide-react";
+import { UploadCloud, LayoutDashboard, DollarSign, Package, MessageSquare, Bell, Send, CheckCircle, AlertTriangle, Info, LogOut, Search, X, Copy, Check, Sparkles, TrendingUp, Database, FileText, User, Trash2, Menu } from "lucide-react";
 
 export default function App() {
-  const [token, setToken] = useState<string | null>(null);
+  const [token, setToken] = useState<string | null>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("token");
+    }
+    return null;
+  });
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -52,18 +56,6 @@ export default function App() {
   // Profile state
   const [userProfile, setUserProfile] = useState<{email: string, files: any[]} | null>(null);
 
-  useEffect(() => {
-    const savedToken = localStorage.getItem("token");
-    if (savedToken) setToken(savedToken);
-  }, []);
-
-  useEffect(() => {
-    if (token) {
-      fetchAllData();
-      fetchProfile();
-    }
-  }, [token]);
-
   const fetchProfile = async () => {
     try {
       const config = { headers: { Authorization: `Bearer ${token}` } };
@@ -80,6 +72,38 @@ export default function App() {
     }
   };
 
+  const fetchAllData = async () => {
+    try {
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      
+      const [overviewRes, cashflowRes, invRes, insightsRes] = await Promise.all([
+        axios.get(API_BASE + "/api/analytics/overview", config),
+        axios.get(API_BASE + "/api/analytics/cashflow", config),
+        axios.get(API_BASE + "/api/inventory", config),
+        axios.get(API_BASE + "/api/insights", config)
+      ]);
+
+      setOverviewData(overviewRes.data);
+      setCashflowData(cashflowRes.data);
+      setInventoryData(invRes.data.inventory || []);
+      setInventoryMetrics(invRes.data.metrics || null);
+      setInsightsData(insightsRes.data.insights || []);
+    } catch (e: any) {
+      console.log("No data found or unauthorized.");
+      if (e.response && (e.response.status === 401 || e.response.status === 404)) {
+        localStorage.removeItem("token");
+        setToken(null);
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (token) {
+      fetchAllData();
+      fetchProfile();
+    }
+  }, [token]);
+
   const handleDeleteFile = async (fileId: number) => {
     if (!confirm("Are you sure you want to delete this file and all its data?")) return;
     try {
@@ -87,7 +111,7 @@ export default function App() {
       await axios.delete(`${API_BASE}/api/user/files/${fileId}`, config);
       fetchProfile();
       fetchAllData();
-    } catch (e) {
+    } catch {
       alert("Failed to delete file");
     }
   };
@@ -157,7 +181,7 @@ export default function App() {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-    } catch (e) {
+    } catch {
       alert("Error generating report.");
     }
   };
@@ -173,31 +197,6 @@ export default function App() {
     setInsightsData([]);
     setDismissedInsights([]);
     setChatLog([]); 
-  };
-
-  const fetchAllData = async () => {
-    try {
-      const config = { headers: { Authorization: `Bearer ${token}` } };
-      
-      const [overviewRes, cashflowRes, invRes, insightsRes] = await Promise.all([
-        axios.get(API_BASE + "/api/analytics/overview", config),
-        axios.get(API_BASE + "/api/analytics/cashflow", config),
-        axios.get(API_BASE + "/api/inventory", config),
-        axios.get(API_BASE + "/api/insights", config)
-      ]);
-
-      setOverviewData(overviewRes.data);
-      setCashflowData(cashflowRes.data);
-      setInventoryData(invRes.data.inventory || []);
-      setInventoryMetrics(invRes.data.metrics || null);
-      setInsightsData(insightsRes.data.insights || []);
-    } catch (e: any) {
-      console.log("No data found or unauthorized.");
-      if (e.response && (e.response.status === 401 || e.response.status === 404)) {
-        localStorage.removeItem("token");
-        setToken(null);
-      }
-    }
   };
 
   // File selection validation
@@ -254,7 +253,7 @@ export default function App() {
               fetchAllData();
             }
           }
-        } catch (e) {
+        } catch {
           clearInterval(pollInterval);
           setLoading(false);
         }
@@ -337,7 +336,7 @@ export default function App() {
           return newLog;
         });
       }
-    } catch (e) {
+    } catch {
       setChatLog((prev) => {
         const newLog = [...prev];
         const lastMsg = newLog[newLog.length - 1];
@@ -1212,7 +1211,7 @@ export default function App() {
               <h3 className="text-xl font-bold text-gray-900 mb-6">Uploaded Files</h3>
               {userProfile.files.length === 0 ? (
                 <div className="text-center p-8 border-2 border-dashed border-gray-200 rounded-2xl">
-                  <p className="text-gray-500">You haven't uploaded any files yet.</p>
+                  <p className="text-gray-500">You haven&apos;t uploaded any files yet.</p>
                 </div>
               ) : (
                 <div className="space-y-4">
