@@ -746,9 +746,9 @@ export default function App() {
                   </div>
                 </div>
                 <div className="flex-1 w-full min-h-0 overflow-x-auto overflow-y-hidden">
-                    <div className="w-full h-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={overviewData.revenue_trend} margin={{ top: 10, right: 20, left: 0, bottom: 20 }}>
+                    <div className="w-full h-full outline-none focus:outline-none select-none">
+                      <ResponsiveContainer width="100%" height="100%" className="outline-none focus:outline-none">
+                        <LineChart data={overviewData.revenue_trend} margin={{ top: 10, right: 20, left: 0, bottom: 20 }} style={{ outline: 'none' }}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
                         <XAxis dataKey="date" stroke="#9ca3af" axisLine={false} tickLine={false} />
                         <YAxis 
@@ -777,9 +777,9 @@ export default function App() {
                   </div>
                 </div>
                 <div className="flex-1 w-full min-h-0 overflow-x-auto overflow-y-hidden">
-                    <div className="w-full h-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={processedInventoryData} margin={{ top: 10, right: 20, left: 0, bottom: 60 }}>
+                    <div className="w-full h-full outline-none focus:outline-none select-none">
+                      <ResponsiveContainer width="100%" height="100%" className="outline-none focus:outline-none">
+                        <BarChart data={processedInventoryData} margin={{ top: 10, right: 20, left: 0, bottom: 60 }} style={{ outline: 'none' }}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
                         <XAxis 
                           dataKey="category" 
@@ -819,9 +819,9 @@ export default function App() {
             <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100/50 h-[450px] flex flex-col hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
               <h3 className="text-xl font-bold text-gray-900 mb-6">Cumulative Business Growth</h3>
                 <div className="flex-1 w-full min-h-0 overflow-x-auto overflow-y-hidden">
-                    <div className="w-full h-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={cumulativeCashflow} margin={{ top: 10, right: 10, left: 0, bottom: 20 }}>
+                    <div className="w-full h-full outline-none focus:outline-none select-none">
+                      <ResponsiveContainer width="100%" height="100%" className="outline-none focus:outline-none">
+                        <AreaChart data={cumulativeCashflow} margin={{ top: 10, right: 10, left: 0, bottom: 20 }} style={{ outline: 'none' }}>
                         <defs>
                           <linearGradient id="colorBalance" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>

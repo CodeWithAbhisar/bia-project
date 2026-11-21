@@ -51,3 +51,38 @@ body {
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.5);
 }
+
+/* ============================================================
+   Remove black focus outline/border on all charts when clicked
+   ============================================================ */
+.recharts-wrapper,
+.recharts-wrapper *,
+.recharts-surface,
+.recharts-surface *,
+.recharts-responsive-container,
+.recharts-responsive-container *,
+.recharts-layer,
+.recharts-layer *,
+svg,
+svg *,
+rect,
+path,
+g {
+  outline: none !important;
+  box-shadow: none !important;
+  -webkit-tap-highlight-color: transparent !important;
+}
+
+.recharts-wrapper:focus,
+.recharts-surface:focus,
+.recharts-layer:focus,
+.recharts-responsive-container:focus,
+svg:focus,
+svg *:focus,
+rect:focus,
+path:focus,
+g:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
