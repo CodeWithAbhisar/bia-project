@@ -151,9 +151,9 @@ def send_otp(req: SendOTPRequest, db: Session = Depends(get_db)):
     db.commit()
     
     # 4. Send the verification email via Gmail SMTP
-    sent = send_otp_email(email, otp)
-    if not sent:
-        raise HTTPException(status_code=500, detail="Failed to deliver verification code. Please check that your email address is correct.")
+    success, err_msg = send_otp_email(email, otp)
+    if not success:
+        raise HTTPException(status_code=500, detail=f"Failed to deliver verification code: {err_msg}")
         
     return {"message": "Verification code sent to your email."}
 
