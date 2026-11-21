@@ -2,16 +2,19 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   // When NEXT_PUBLIC_API_URL is set (e.g. on Railway/Render), proxy /api calls to it.
-  // This way the frontend never hard-codes "localhost" anywhere.
+  // afterFiles ensures local route handlers (like /api/auth/send-otp) execute first,
+  // while backend endpoints proxy to Render.
   async rewrites() {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL;
     if (!apiUrl) return [];
-    return [
-      {
-        source: "/api/:path*",
-        destination: `${apiUrl}/api/:path*`,
-      },
-    ];
+    return {
+      afterFiles: [
+        {
+          source: "/api/:path*",
+          destination: `${apiUrl}/api/:path*`,
+        },
+      ],
+    };
   },
 };
 

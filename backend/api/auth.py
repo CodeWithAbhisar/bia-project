@@ -132,6 +132,26 @@ def google_auth(req: GoogleAuthRequest, db: Session = Depends(get_db)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Google sign-in error: {str(e)}")
 
+@router.post("/api/auth/create-otp")
+def create_otp(req: SendOTPRequest, db: Session = Depends(get_db)):
+    email = req.email.lower().strip()
+    
+    # 1. Check if user already exists
+    if db.query(User).filter(User.email == email).first():
+        raise HTTPException(status_code=400, detail="An account with this email already exists.")
+    
+    # 2. Generate 6-digit random code
+    otp = f"{random.randint(100000, 999999)}"
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=10)
+    
+    # 3. Clean up older OTPs for this email and save new one
+    db.query(EmailOTP).filter(EmailOTP.email == email).delete()
+    new_otp = EmailOTP(email=email, otp=otp, expires_at=expires_at)
+    db.add(new_otp)
+    db.commit()
+    
+    return {"otp": otp}
+
 @router.post("/api/auth/send-otp")
 def send_otp(req: SendOTPRequest, db: Session = Depends(get_db)):
     email = req.email.lower().strip()
