@@ -5,7 +5,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 const API_BASE = "";
 import axios from "axios";
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { UploadCloud, LayoutDashboard, DollarSign, Package, MessageSquare, Bell, Send, CheckCircle, AlertTriangle, Info, LogOut, Search, X, Copy, Check, Sparkles, TrendingUp, Database, FileText, User, Trash2, Menu } from "lucide-react";
+import { UploadCloud, LayoutDashboard, DollarSign, Package, MessageSquare, Bell, Send, CheckCircle, AlertTriangle, Info, LogOut, Search, X, Copy, Check, Sparkles, TrendingUp, Database, FileText, User, Trash2, Menu, Mail } from "lucide-react";
 
 export default function App() {
   const [token, setToken] = useState<string | null>(() => {
@@ -21,6 +21,19 @@ export default function App() {
   const [fullName, setFullName] = useState("");
   const [company, setCompany] = useState("");
   const [termsAccepted, setTermsAccepted] = useState(false);
+
+  // OTP Verification state
+  const [isOtpStep, setIsOtpStep] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+
+  useEffect(() => {
+    if (resendCooldown > 0) {
+      const timer = setTimeout(() => setResendCooldown(resendCooldown - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [resendCooldown]);
 
   const [activeTab, setActiveTab] = useState("dashboard");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -196,14 +209,10 @@ export default function App() {
 
     try {
       if (authMode === "register") {
-        await axios.post(API_BASE + "/api/auth/register", { 
-          email, 
-          password,
-          full_name: fullName || undefined,
-          company: company || undefined
-        });
-        alert("Account created successfully! Please log in.");
-        setAuthMode("login");
+        setIsSendingOtp(true);
+        await axios.post(API_BASE + "/api/auth/send-otp", { email });
+        setIsOtpStep(true);
+        setResendCooldown(60);
       } else {
         const res = await axios.post(API_BASE + "/api/auth/login", { email, password });
         setToken(res.data.access_token);
@@ -211,6 +220,49 @@ export default function App() {
       }
     } catch (e: any) {
       setAuthError(e.response?.data?.detail || "Authentication failed.");
+    } finally {
+      setIsSendingOtp(false);
+    }
+  };
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError("");
+    if (!otpCode || otpCode.trim().length !== 6) {
+      setAuthError("Please enter the complete 6-digit verification code.");
+      return;
+    }
+    try {
+      setIsSendingOtp(true);
+      const res = await axios.post(API_BASE + "/api/auth/verify-otp", {
+        email,
+        otp: otpCode.trim(),
+        password,
+        full_name: fullName || undefined,
+        company: company || undefined
+      });
+      if (res.data.access_token) {
+        setToken(res.data.access_token);
+        localStorage.setItem("token", res.data.access_token);
+      }
+    } catch (e: any) {
+      setAuthError(e.response?.data?.detail || "Failed to verify code.");
+    } finally {
+      setIsSendingOtp(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (resendCooldown > 0 || isSendingOtp) return;
+    try {
+      setAuthError("");
+      setIsSendingOtp(true);
+      await axios.post(API_BASE + "/api/auth/send-otp", { email });
+      setResendCooldown(60);
+    } catch (e: any) {
+      setAuthError(e.response?.data?.detail || "Failed to resend code.");
+    } finally {
+      setIsSendingOtp(false);
     }
   };
 
@@ -444,6 +496,78 @@ export default function App() {
         <div className="absolute -bottom-8 left-20 w-96 h-96 bg-indigo-300 rounded-full mix-blend-multiply filter blur-[80px] opacity-60 animate-blob animation-delay-4000"></div>
         
         <div className="glass-card p-10 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] w-full max-w-[420px] relative z-10">
+          {isOtpStep ? (
+            <div className="flex flex-col animate-in fade-in duration-300">
+              <div className="flex flex-col items-center justify-center mb-6">
+                <div className="bg-blue-600/10 text-blue-600 p-3.5 rounded-2xl mb-4">
+                  <Mail size={32} />
+                </div>
+                <h2 className="text-2xl font-extrabold text-gray-900 tracking-tight text-center">
+                  Verify Your Email
+                </h2>
+                <p className="text-gray-500 mt-2 text-sm text-center leading-relaxed">
+                  We sent a 6-digit verification code to<br />
+                  <span className="font-semibold text-gray-800">{email}</span>
+                </p>
+              </div>
+
+              {authError && (
+                <div className="mb-5 p-3 bg-red-50 border border-red-200 text-red-600 rounded-lg text-sm text-center font-medium flex items-center justify-center gap-2">
+                  <AlertTriangle size={16} />
+                  {authError}
+                </div>
+              )}
+
+              <form onSubmit={handleVerifyOtp} className="flex flex-col gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-2 text-center">
+                    Enter Verification Code
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={6}
+                    placeholder="123456"
+                    value={otpCode}
+                    onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
+                    className="w-full text-center text-3xl font-extrabold tracking-[10px] font-mono p-3 border border-gray-300 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all bg-gray-50/50 focus:bg-white"
+                    required
+                    autoFocus
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isSendingOtp}
+                  className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold py-3 px-4 rounded-lg transition-all shadow-lg shadow-blue-600/30 hover:shadow-blue-600/40 mt-1 cursor-pointer"
+                >
+                  {isSendingOtp ? "Verifying..." : "Verify & Complete Registration"}
+                </button>
+              </form>
+
+              <div className="flex flex-col items-center gap-3 mt-6 text-xs">
+                <button
+                  type="button"
+                  disabled={resendCooldown > 0 || isSendingOtp}
+                  onClick={handleResendOtp}
+                  className="font-semibold text-blue-600 hover:text-blue-700 disabled:text-gray-400 transition-colors cursor-pointer"
+                >
+                  {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : "Didn't receive code? Resend"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsOtpStep(false);
+                    setOtpCode("");
+                    setAuthError("");
+                  }}
+                  className="text-gray-500 hover:text-gray-700 underline transition-colors cursor-pointer"
+                >
+                  Edit registration info
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
           <div className="flex flex-col items-center justify-center mb-8">
             <div className="bg-blue-600 p-3 rounded-xl mb-4 shadow-lg shadow-blue-600/30">
               <LayoutDashboard className="text-white" size={28} />
@@ -535,11 +659,13 @@ export default function App() {
           <div className="text-center mt-8">
             <p className="text-sm text-gray-600">
               {authMode === "login" ? "Don't have an account?" : "Already have an account?"}
-              <button onClick={() => { setAuthMode(authMode === "login" ? "register" : "login"); setAuthError(""); setPassword(""); setConfirmPassword(""); }} className="ml-1 font-bold text-blue-600 hover:text-blue-700 transition-colors">
+              <button onClick={() => { setAuthMode(authMode === "login" ? "register" : "login"); setIsOtpStep(false); setOtpCode(""); setAuthError(""); setPassword(""); setConfirmPassword(""); }} className="ml-1 font-bold text-blue-600 hover:text-blue-700 transition-colors">
                 {authMode === "login" ? "Sign up" : "Log in"}
               </button>
             </p>
           </div>
+            </>
+          )}
         </div>
       </div>
     );

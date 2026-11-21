@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, Float, JSON
+from sqlalchemy import create_engine, Column, Integer, String, Float, JSON, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import os
@@ -62,6 +62,13 @@ class FileRecord(Base):
     file_hash = Column(String, index=True)
     filename = Column(String)
     status = Column(String, default="completed")
+
+class EmailOTP(Base):
+    __tablename__ = "email_otps"
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, index=True)
+    otp = Column(String)
+    expires_at = Column(DateTime)
 
 Base.metadata.create_all(bind=engine)
 

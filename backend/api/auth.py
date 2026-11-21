@@ -9,8 +9,10 @@ import bcrypt
 import os
 import requests
 import uuid
+import random
 
-from models.database import get_db, User
+from models.database import get_db, User, EmailOTP
+from services.email_service import send_otp_email
 
 # Security Configuration
 SECRET_KEY = os.getenv("SECRET_KEY", "super-secret-bi-key")
@@ -32,6 +34,16 @@ class UserRegister(UserAuth):
 
 class GoogleAuthRequest(BaseModel):
     credential: str
+
+class SendOTPRequest(BaseModel):
+    email: str = Field(..., pattern=r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$", description="Valid email address")
+
+class VerifyOTPRequest(BaseModel):
+    email: str
+    otp: str
+    password: str
+    full_name: Optional[str] = None
+    company: Optional[str] = None
 
 def get_current_user_id(credentials: HTTPAuthorizationCredentials = Depends(security)):
     try:
@@ -119,3 +131,74 @@ def google_auth(req: GoogleAuthRequest, db: Session = Depends(get_db)):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Google sign-in error: {str(e)}")
+
+@router.post("/api/auth/send-otp")
+def send_otp(req: SendOTPRequest, db: Session = Depends(get_db)):
+    email = req.email.lower().strip()
+    
+    # 1. Check if user already exists
+    if db.query(User).filter(User.email == email).first():
+        raise HTTPException(status_code=400, detail="An account with this email already exists.")
+    
+    # 2. Generate 6-digit random code
+    otp = f"{random.randint(100000, 999999)}"
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=10)
+    
+    # 3. Clean up older OTPs for this email and save new one
+    db.query(EmailOTP).filter(EmailOTP.email == email).delete()
+    new_otp = EmailOTP(email=email, otp=otp, expires_at=expires_at)
+    db.add(new_otp)
+    db.commit()
+    
+    # 4. Send the verification email via Gmail SMTP
+    sent = send_otp_email(email, otp)
+    if not sent:
+        raise HTTPException(status_code=500, detail="Failed to deliver verification code. Please check that your email address is correct.")
+        
+    return {"message": "Verification code sent to your email."}
+
+@router.post("/api/auth/verify-otp")
+def verify_otp(req: VerifyOTPRequest, db: Session = Depends(get_db)):
+    email = req.email.lower().strip()
+    otp_code = req.otp.strip()
+    
+    # 1. Check if user already exists
+    if db.query(User).filter(User.email == email).first():
+        raise HTTPException(status_code=400, detail="Email already registered.")
+        
+    # 2. Find and validate OTP
+    record = db.query(EmailOTP).filter(EmailOTP.email == email, EmailOTP.otp == otp_code).first()
+    if not record:
+        raise HTTPException(status_code=400, detail="Invalid verification code. Please double-check the code sent to your email.")
+        
+    # 3. Check expiration
+    exp = record.expires_at
+    if exp.tzinfo is None:
+        exp = exp.replace(tzinfo=timezone.utc)
+    if exp < datetime.now(timezone.utc):
+        db.delete(record)
+        db.commit()
+        raise HTTPException(status_code=400, detail="Verification code has expired. Please request a new one.")
+        
+    # 4. Delete used OTP
+    db.delete(record)
+    
+    # 5. Create new user
+    salt = bcrypt.gensalt()
+    hashed_password = bcrypt.hashpw(req.password.encode('utf-8'), salt).decode('utf-8')
+    new_user = User(
+        email=email,
+        hashed_password=hashed_password,
+        full_name=req.full_name,
+        company=req.company
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    
+    token = jwt.encode(
+        {"sub": str(new_user.id), "exp": datetime.now(timezone.utc) + timedelta(days=1)}, 
+        SECRET_KEY, 
+        algorithm=ALGORITHM
+    )
+    return {"access_token": token, "user_id": new_user.id}
