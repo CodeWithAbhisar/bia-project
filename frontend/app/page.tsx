@@ -816,7 +816,7 @@ export default function App() {
   const displayLiveStream = hasAnyData ? (bamLive?.live_stream || []) : [];
 
   let runningTotal = 0;
-  const cumulativeCashflow = cashflowData?.cashflow?.map((item: any) => {
+  const cumulativeCashflow = (cashflowData?.cashflow || cashflowData?.cashflow_trend || []).map((item: any) => {
     runningTotal += (item.amount || 0);
     return { date: item.date, balance: parseFloat(runningTotal.toFixed(2)) };
   }) || [];
@@ -2164,8 +2164,10 @@ export default function App() {
                     <div className="p-2 bg-emerald-100 text-emerald-600 rounded-lg"><DollarSign size={18} /></div>
                     <p className="text-sm text-emerald-800 font-semibold">Operating Cash Flow</p>
                   </div>
-                  <p className="text-2xl font-extrabold text-emerald-900 truncate" title={String(hasAnyData && cashflowData.financial_metrics.operating_cash_flow !== null ? cashflowData.financial_metrics.operating_cash_flow : 0)}>
-                    {hasAnyData && cashflowData.financial_metrics.operating_cash_flow !== null ? "$" + formatCompact(cashflowData.financial_metrics.operating_cash_flow) : "$0"}
+                  <p className="text-2xl font-extrabold text-emerald-900 truncate" title={String(hasAnyData && (cashflowData?.financial_metrics?.operating_cash_flow ?? cashflowData?.operating_cash_flow) !== null ? (cashflowData?.financial_metrics?.operating_cash_flow ?? cashflowData?.operating_cash_flow) : 0)}>
+                    {hasAnyData && (cashflowData?.financial_metrics?.operating_cash_flow ?? cashflowData?.operating_cash_flow) !== null && (cashflowData?.financial_metrics?.operating_cash_flow ?? cashflowData?.operating_cash_flow) !== undefined
+                      ? "$" + formatCompact(cashflowData?.financial_metrics?.operating_cash_flow ?? cashflowData?.operating_cash_flow ?? 0)
+                      : "$0"}
                   </p>
                 </div>
                 <div className="p-6 bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-2xl border border-blue-100 shadow-sm">
@@ -2173,8 +2175,10 @@ export default function App() {
                     <div className="p-2 bg-blue-100 text-blue-600 rounded-lg"><TrendingUp size={18} /></div>
                     <p className="text-sm text-blue-800 font-semibold">Gross Margin</p>
                   </div>
-                  <p className="text-2xl font-extrabold text-blue-900 truncate" title={String(hasAnyData && cashflowData.financial_metrics.gross_margin !== null ? cashflowData.financial_metrics.gross_margin : "Requires Cost Data")}>
-                    {hasAnyData && cashflowData.financial_metrics.gross_margin !== null ? `${cashflowData.financial_metrics.gross_margin}%` : "Requires Cost Data"}
+                  <p className="text-2xl font-extrabold text-blue-900 truncate" title={String(hasAnyData && (cashflowData?.financial_metrics?.gross_margin ?? cashflowData?.gross_margin) !== null ? (cashflowData?.financial_metrics?.gross_margin ?? cashflowData?.gross_margin) : "Requires Cost Data")}>
+                    {hasAnyData && (cashflowData?.financial_metrics?.gross_margin ?? cashflowData?.gross_margin) !== null && (cashflowData?.financial_metrics?.gross_margin ?? cashflowData?.gross_margin) !== undefined
+                      ? `${cashflowData?.financial_metrics?.gross_margin ?? cashflowData?.gross_margin}%`
+                      : "Requires Cost Data"}
                   </p>
                 </div>
                 <div className="p-6 bg-gradient-to-br from-purple-50 to-purple-100/50 rounded-2xl border border-purple-100 shadow-sm">
@@ -2182,8 +2186,10 @@ export default function App() {
                     <div className="p-2 bg-purple-100 text-purple-600 rounded-lg"><Sparkles size={18} /></div>
                     <p className="text-sm text-purple-800 font-semibold">Net Margin</p>
                   </div>
-                  <p className="text-2xl font-extrabold text-purple-900 truncate" title={String(hasAnyData && cashflowData.financial_metrics.net_margin !== null ? cashflowData.financial_metrics.net_margin : "Requires Profit Data")}>
-                    {hasAnyData && cashflowData.financial_metrics.net_margin !== null ? `${cashflowData.financial_metrics.net_margin}%` : "Requires Profit Data"}
+                  <p className="text-2xl font-extrabold text-purple-900 truncate" title={String(hasAnyData && (cashflowData?.financial_metrics?.net_margin ?? cashflowData?.net_margin) !== null ? (cashflowData?.financial_metrics?.net_margin ?? cashflowData?.net_margin) : "Requires Profit Data")}>
+                    {hasAnyData && (cashflowData?.financial_metrics?.net_margin ?? cashflowData?.net_margin) !== null && (cashflowData?.financial_metrics?.net_margin ?? cashflowData?.net_margin) !== undefined
+                      ? `${cashflowData?.financial_metrics?.net_margin ?? cashflowData?.net_margin}%`
+                      : "Requires Profit Data"}
                   </p>
                 </div>
                 <div className="p-6 bg-gradient-to-br from-gray-50 to-gray-100/50 rounded-2xl border border-gray-200 shadow-sm">
@@ -2191,8 +2197,8 @@ export default function App() {
                     <div className="p-2 bg-gray-200 text-gray-600 rounded-lg"><AlertTriangle size={18} /></div>
                     <p className="text-sm text-gray-700 font-semibold">Cash Burn Rate</p>
                   </div>
-                  <p className="text-2xl font-extrabold text-gray-900 truncate" title={String(hasAnyData ? cashflowData.financial_metrics.burn_rate : 0)}>
-                    ${formatCompact(hasAnyData ? cashflowData.financial_metrics.burn_rate : 0)} <span className="text-base font-medium text-gray-500">/mo</span>
+                  <p className="text-2xl font-extrabold text-gray-900 truncate" title={String(hasAnyData ? (cashflowData?.financial_metrics?.burn_rate ?? cashflowData?.burn_rate ?? 0) : 0)}>
+                    ${formatCompact(hasAnyData ? (cashflowData?.financial_metrics?.burn_rate ?? cashflowData?.burn_rate ?? 0) : 0)} <span className="text-base font-medium text-gray-500">/mo</span>
                   </p>
                 </div>
               </div>

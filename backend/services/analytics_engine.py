@@ -98,14 +98,16 @@ def get_cashflow_data(db: Session, user_id: int):
 
     if file_count == 0 and connected_count == 0:
         return {
-            "operating_cash_flow": 0.0,
-            "burn_rate": 0.0,
-            "break_even": 0.0,
-            "gross_margin": None,
-            "net_margin": None,
-            "expense_ratio": None,
-            "roi": None,
-            "cashflow_trend": []
+            "cashflow": [],
+            "financial_metrics": {
+                "operating_cash_flow": 0.0,
+                "burn_rate": 0.0,
+                "break_even": 0.0,
+                "gross_margin": None,
+                "net_margin": None,
+                "expense_ratio": None,
+                "roi": None
+            }
         }
 
     daily_sales = db.query(
