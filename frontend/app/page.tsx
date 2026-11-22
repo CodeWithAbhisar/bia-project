@@ -1983,6 +1983,7 @@ export default function App() {
             
             <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100/50 h-[450px] flex flex-col hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
               <h3 className="text-xl font-bold text-gray-900 mb-6">Cumulative Business Growth</h3>
+              {cumulativeCashflow.length > 0 && cumulativeCashflow.some((item: any) => Number(item.balance) !== 0) ? (
                 <div className="flex-1 w-full min-h-0 overflow-x-auto overflow-y-hidden">
                     <div className="w-full h-full outline-none focus:outline-none select-none">
                       <ResponsiveContainer width="100%" height="100%" className="outline-none focus:outline-none">
@@ -2005,6 +2006,33 @@ export default function App() {
                     </ResponsiveContainer>
                   </div>
                 </div>
+              ) : (
+                <div className="flex-1 flex flex-col items-center justify-center text-center p-6 border-2 border-dashed border-slate-200/90 rounded-2xl bg-slate-50/60">
+                  <div className="w-14 h-14 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center mb-3 shadow-sm">
+                    <TrendingUp size={26} />
+                  </div>
+                  <h4 className="text-sm font-bold text-slate-800 mb-1">Awaiting Cashflow Data</h4>
+                  <p className="text-xs text-slate-500 max-w-xs mb-4">
+                    Cumulative business cash balance trajectory will plot here as income and expense events are recorded.
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={handleLoadDemoData}
+                      disabled={isLoadingDemo}
+                      className="px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    >
+                      <Zap size={13} className="text-yellow-300" />
+                      {isLoadingDemo ? "Loading..." : "Load Demo Data"}
+                    </button>
+                    <button 
+                      onClick={() => setActiveTab("integrations")}
+                      className="px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-semibold transition-all cursor-pointer"
+                    >
+                      Record Quick Sale
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
             
             <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
@@ -2118,26 +2146,50 @@ export default function App() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {inventoryData.filter(item => item.category.toLowerCase().includes(inventorySearch.toLowerCase())).map((item, idx) => (
-                      <tr key={idx} className="hover:bg-blue-50/50 transition-colors">
-                        <td className="p-4 text-gray-900 font-medium">{item.category}</td>
-                        <td className="p-4 text-gray-600">{item.sold}</td>
-                        <td className="p-4 font-bold text-gray-900">{item.remaining}</td>
-                        <td className="p-4 text-gray-600">
-                          <div className="flex items-center gap-2">
-                            <span>{item.sell_through_rate}%</span>
-                            <div className="w-16 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                              <div className="h-full bg-blue-500 rounded-full" style={{ width: `${Math.min(item.sell_through_rate, 100)}%` }} />
+                    {inventoryData.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="py-12 px-4 text-center">
+                          <div className="flex flex-col items-center justify-center">
+                            <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mb-2">
+                              <Package size={24} />
                             </div>
+                            <p className="text-sm font-bold text-slate-700">No Inventory Records Yet</p>
+                            <p className="text-xs text-slate-400 max-w-xs mt-1 mb-3">
+                              Upload a CSV dataset or load demo inventory to monitor category stock levels and replenishment risks.
+                            </p>
+                            <button
+                              onClick={handleLoadDemoData}
+                              disabled={isLoadingDemo}
+                              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                            >
+                              <Zap size={12} className="text-yellow-300" />
+                              {isLoadingDemo ? "Loading..." : "Load Demo Data"}
+                            </button>
                           </div>
                         </td>
-                        <td className="p-4">
-                          <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${item.status === 'Low Stock' ? 'bg-red-100 text-red-700' : item.status === 'Out of Stock' ? 'bg-gray-100 text-gray-500' : 'bg-emerald-100 text-emerald-700'}`}>
-                            {item.status}
-                          </span>
-                        </td>
                       </tr>
-                    ))}
+                    ) : (
+                      inventoryData.filter(item => item.category.toLowerCase().includes(inventorySearch.toLowerCase())).map((item, idx) => (
+                        <tr key={idx} className="hover:bg-blue-50/50 transition-colors">
+                          <td className="p-4 text-gray-900 font-medium">{item.category}</td>
+                          <td className="p-4 text-gray-600">{item.sold}</td>
+                          <td className="p-4 font-bold text-gray-900">{item.remaining}</td>
+                          <td className="p-4 text-gray-600">
+                            <div className="flex items-center gap-2">
+                              <span>{item.sell_through_rate}%</span>
+                              <div className="w-16 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                <div className="h-full bg-blue-500 rounded-full" style={{ width: `${Math.min(item.sell_through_rate, 100)}%` }} />
+                              </div>
+                            </div>
+                          </td>
+                          <td className="p-4">
+                            <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${item.status === 'Low Stock' ? 'bg-red-100 text-red-700' : item.status === 'Out of Stock' ? 'bg-gray-100 text-gray-500' : 'bg-emerald-100 text-emerald-700'}`}>
+                              {item.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
