@@ -369,14 +369,43 @@ export default function App() {
       return;
     }
     
-    if (authMode === "register" && password !== confirmPassword) {
-      setAuthError("Passwords do not match. Please try again.");
-      return;
-    }
-    
-    if (authMode === "register" && !termsAccepted) {
-      setAuthError("You must accept the Terms of Service to create an account.");
-      return;
+    if (authMode === "register") {
+      if (password !== confirmPassword) {
+        setAuthError("Passwords do not match. Please try again.");
+        return;
+      }
+
+      const passHasLength = password.length >= 8;
+      const passHasUpper = /[A-Z]/.test(password);
+      const passHasLower = /[a-z]/.test(password);
+      const passHasNumber = /[0-9]/.test(password);
+      const passHasSpecial = /[!@#$%^&*(),.?":{}|<>\-_=+[\];/~`]/.test(password);
+
+      if (!passHasLength) {
+        setAuthError("Password must be at least 8 characters long.");
+        return;
+      }
+      if (!passHasUpper) {
+        setAuthError("Password must contain at least one uppercase letter (A-Z).");
+        return;
+      }
+      if (!passHasLower) {
+        setAuthError("Password must contain at least one lowercase letter (a-z).");
+        return;
+      }
+      if (!passHasNumber) {
+        setAuthError("Password must contain at least one number (0-9).");
+        return;
+      }
+      if (!passHasSpecial) {
+        setAuthError("Password must contain at least one special character (!@#$%^&*...).");
+        return;
+      }
+      
+      if (!termsAccepted) {
+        setAuthError("You must accept the Terms of Service to create an account.");
+        return;
+      }
     }
     
     // Catch common typos for popular domains
@@ -850,6 +879,65 @@ export default function App() {
                 {authMode === "login" && <a href="#" className="text-xs font-semibold text-blue-400 hover:text-blue-300">Forgot?</a>}
               </div>
               <input type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full p-3 bg-slate-800/80 border border-slate-700/80 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-white text-xs placeholder-slate-500" required />
+              
+              {authMode === "register" && password.length > 0 && (() => {
+                const hasLength = password.length >= 8;
+                const hasUpper = /[A-Z]/.test(password);
+                const hasLower = /[a-z]/.test(password);
+                const hasNumber = /[0-9]/.test(password);
+                const hasSpecial = /[!@#$%^&*(),.?":{}|<>\-_=+[\];/~`]/.test(password);
+                const score = [hasLength, hasUpper, hasLower, hasNumber, hasSpecial].filter(Boolean).length;
+
+                return (
+                  <div className="mt-2.5 p-3 bg-slate-950/60 border border-slate-800 rounded-xl flex flex-col gap-2 animate-in fade-in duration-200">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-slate-400 font-medium">Password Strength:</span>
+                      <span className={`font-bold ${
+                        score <= 2 ? "text-rose-400" :
+                        score <= 4 ? "text-amber-400" :
+                        "text-emerald-400"
+                      }`}>
+                        {score <= 2 ? "Weak" : score <= 4 ? "Medium" : "Strong"}
+                      </span>
+                    </div>
+
+                    {/* 4-segment indicator */}
+                    <div className="grid grid-cols-4 gap-1.5 h-1.5 w-full">
+                      <div className={`rounded-full h-full transition-all ${
+                        score >= 1 ? (score <= 2 ? "bg-rose-500" : score <= 4 ? "bg-amber-500" : "bg-emerald-500") : "bg-slate-700"
+                      }`} />
+                      <div className={`rounded-full h-full transition-all ${
+                        score >= 2 ? (score <= 2 ? "bg-rose-500" : score <= 4 ? "bg-amber-500" : "bg-emerald-500") : "bg-slate-700"
+                      }`} />
+                      <div className={`rounded-full h-full transition-all ${
+                        score >= 3 ? (score <= 4 ? "bg-amber-500" : "bg-emerald-500") : "bg-slate-700"
+                      }`} />
+                      <div className={`rounded-full h-full transition-all ${
+                        score === 5 ? "bg-emerald-500" : "bg-slate-700"
+                      }`} />
+                    </div>
+
+                    {/* Live Checklist */}
+                    <div className="grid grid-cols-2 gap-1 mt-0.5 text-[10px]">
+                      <span className={`flex items-center gap-1.5 ${hasLength ? "text-emerald-400 font-semibold" : "text-slate-500"}`}>
+                        <span>{hasLength ? "✓" : "○"}</span> 8+ characters
+                      </span>
+                      <span className={`flex items-center gap-1.5 ${hasUpper ? "text-emerald-400 font-semibold" : "text-slate-500"}`}>
+                        <span>{hasUpper ? "✓" : "○"}</span> 1 Uppercase (A-Z)
+                      </span>
+                      <span className={`flex items-center gap-1.5 ${hasLower ? "text-emerald-400 font-semibold" : "text-slate-500"}`}>
+                        <span>{hasLower ? "✓" : "○"}</span> 1 Lowercase (a-z)
+                      </span>
+                      <span className={`flex items-center gap-1.5 ${hasNumber ? "text-emerald-400 font-semibold" : "text-slate-500"}`}>
+                        <span>{hasNumber ? "✓" : "○"}</span> 1 Number (0-9)
+                      </span>
+                      <span className={`col-span-2 flex items-center gap-1.5 ${hasSpecial ? "text-emerald-400 font-semibold" : "text-slate-500"}`}>
+                        <span>{hasSpecial ? "✓" : "○"}</span> 1 Special symbol (!@#$...)
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             {authMode === "register" && (

@@ -10,6 +10,7 @@ import os
 import requests
 import uuid
 import random
+import re
 
 from models.database import get_db, User, EmailOTP
 from services.email_service import send_otp_email
@@ -23,6 +24,33 @@ security = HTTPBearer()
 router = APIRouter()
 
 from typing import Optional
+
+def validate_password_strength(password: str) -> None:
+    if not password or len(password) < 8:
+        raise HTTPException(
+            status_code=400, 
+            detail="Password must be at least 8 characters long."
+        )
+    if not re.search(r"[A-Z]", password):
+        raise HTTPException(
+            status_code=400, 
+            detail="Password must contain at least one uppercase letter (A-Z)."
+        )
+    if not re.search(r"[a-z]", password):
+        raise HTTPException(
+            status_code=400, 
+            detail="Password must contain at least one lowercase letter (a-z)."
+        )
+    if not re.search(r"\d", password):
+        raise HTTPException(
+            status_code=400, 
+            detail="Password must contain at least one number (0-9)."
+        )
+    if not re.search(r"[!@#$%^&*(),.?\":{}|<>\-_=+[\];/~`]", password):
+        raise HTTPException(
+            status_code=400, 
+            detail="Password must contain at least one special character (!@#$%^&*...)."
+        )
 
 class UserAuth(BaseModel):
     email: str = Field(..., pattern=r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$", description="Valid email address")
@@ -57,6 +85,9 @@ def get_current_user_id(credentials: HTTPAuthorizationCredentials = Depends(secu
 
 @router.post("/api/auth/register")
 def register(user: UserRegister, db: Session = Depends(get_db)):
+    # 0. Validate strong password requirements
+    validate_password_strength(user.password)
+
     # 1. Check if user already exists
     if db.query(User).filter(User.email == user.email).first():
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -181,6 +212,9 @@ def send_otp(req: SendOTPRequest, db: Session = Depends(get_db)):
 def verify_otp(req: VerifyOTPRequest, db: Session = Depends(get_db)):
     email = req.email.lower().strip()
     otp_code = req.otp.strip()
+    
+    # 0. Validate strong password requirements
+    validate_password_strength(req.password)
     
     # 1. Check if user already exists
     if db.query(User).filter(User.email == email).first():
