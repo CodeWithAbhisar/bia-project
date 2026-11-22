@@ -1826,28 +1826,6 @@ export default function App() {
                     </div>
                   </div>
                 ) : (
-                  <div className="flex-1 w-full min-h-0 overflow-x-auto overflow-y-hidden">
-                    <div className="w-full h-full outline-none focus:outline-none select-none">
-                      <ResponsiveContainer width="100%" height="100%" className="outline-none focus:outline-none">
-                        <LineChart data={overviewData?.revenue_trend || []} margin={{ top: 10, right: 20, left: 0, bottom: 20 }} style={{ outline: 'none' }}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
-                          <XAxis dataKey="date" stroke="#9ca3af" axisLine={false} tickLine={false} />
-                          <YAxis 
-                            stroke="#9ca3af" 
-                            axisLine={false} 
-                            tickLine={false} 
-                            tickFormatter={(value) => `$${formatCompact(value)}`}
-                          />
-                          <Tooltip 
-                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                            formatter={(value: any) => [`$${value.toLocaleString()}`, 'Revenue']}
-                          />
-                          <Line type="monotone" dataKey="revenue" stroke="#3b82f6" strokeWidth={4} dot={false} activeDot={{ r: 6, fill: '#2563eb' }} />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </div>
-                ) : (
                   <div className="flex-1 flex flex-col items-center justify-center text-center p-6 border-2 border-dashed border-slate-200/90 rounded-2xl bg-slate-50/60">
                     <div className="w-14 h-14 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center mb-3 shadow-sm">
                       <TrendingUp size={26} />
