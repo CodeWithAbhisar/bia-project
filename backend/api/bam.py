@@ -5,6 +5,9 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field
 import random
+import os
+import requests
+import re
 
 from models.database import get_db, Transaction, User, AlertNotification
 from api.auth import get_current_user_id
@@ -12,6 +15,16 @@ from api.auth import get_current_user_id
 router = APIRouter(prefix="/api/bam", tags=["bam"])
 
 # Pydantic Schemas
+class QuickSaleRequest(BaseModel):
+    amount: float
+    category: str = "General"
+    channel: str = "In-Store POS"
+    customer_name: Optional[str] = "Walk-in"
+    note: Optional[str] = None
+
+class GoogleSheetSyncRequest(BaseModel):
+    sheet_url: str
+
 class IngestTransactionItem(BaseModel):
     date: Optional[str] = None
     amount: float = Field(..., description="Transaction amount")
@@ -311,6 +324,87 @@ def simulate_live_erp_event(
             "source": chosen_source
         }
     }
+
+@router.post("/quick-sale")
+def record_quick_sale(
+    req: QuickSaleRequest,
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id)
+):
+    """Easy Point-of-Sale / Walk-in entry form for small business owners."""
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    new_tx = Transaction(
+        user_id=user_id,
+        date=today_str,
+        amount=float(req.amount),
+        category=req.category or "General",
+        product_sku=req.note or "Counter Sale",
+        customer_id=req.customer_name or "Walk-in",
+        raw_data={"source": req.channel or "In-Store POS", "timestamp": datetime.now().isoformat()}
+    )
+    db.add(new_tx)
+    
+    # Add real-time notification
+    notif = AlertNotification(
+        user_id=user_id,
+        title=f"New Sale: {req.channel}",
+        message=f"Added ${req.amount:,.2f} order in {req.category} ({req.customer_name or 'Walk-in'}).",
+        severity="success",
+        metric_type="integration",
+        is_read=0
+    )
+    db.add(notif)
+    db.commit()
+    return {"status": "success", "message": f"Sale of ${req.amount:,.2f} recorded and added to live dashboard!"}
+
+@router.post("/sync-google-sheet")
+def sync_google_sheet(
+    req: GoogleSheetSyncRequest,
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id)
+):
+    """Zero-code 1-click Google Sheets synchronization for small businesses."""
+    from services.etl_service import process_and_load_csv
+    
+    url = req.sheet_url.strip()
+    match = re.search(r"/spreadsheets/d/([a-zA-Z0-9-_]+)", url)
+    if match:
+        sheet_id = match.group(1)
+        csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
+    elif "http" in url:
+        csv_url = url
+    else:
+        raise HTTPException(status_code=400, detail="Invalid Google Sheet link. Please paste a standard Google Sheets sharing link.")
+        
+    try:
+        res = requests.get(csv_url, timeout=15)
+        if res.status_code != 200:
+            raise HTTPException(status_code=400, detail="Could not access Google Sheet. Please check that sharing is set to 'Anyone with the link can view'.")
+        
+        temp_path = f"temp_gsheet_{user_id}_{int(datetime.now().timestamp())}.csv"
+        with open(temp_path, "wb") as f:
+            f.write(res.content)
+            
+        process_and_load_csv(temp_path, user_id=user_id)
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+            
+        notif = AlertNotification(
+            user_id=user_id,
+            title="Google Sheet Synchronized",
+            message="Successfully pulled latest data from your Google Sheet into the dashboard.",
+            severity="success",
+            metric_type="integration",
+            is_read=0
+        )
+        db.add(notif)
+        db.commit()
+            
+        return {"status": "success", "message": "Google Sheet successfully synced with your dashboard!"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Google Sheet sync error: {str(e)}")
 
 # -------------------------------------------------------------
 # 4. DRILL-DOWN ANALYSIS & ROOT CAUSE INVESTIGATION (Feature 4)

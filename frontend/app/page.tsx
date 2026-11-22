@@ -5,7 +5,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 const API_BASE = "";
 import axios from "axios";
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
-import { UploadCloud, LayoutDashboard, DollarSign, Package, MessageSquare, Bell, Send, CheckCircle, AlertTriangle, Info, LogOut, Search, X, Copy, Check, Sparkles, TrendingUp, Database, FileText, User, Trash2, Menu, Mail, Activity, RefreshCw, Plug, Layers, Zap, ShieldAlert, ArrowUpRight, ArrowDownRight, Eye, ChevronRight, Sliders, CheckCircle2, AlertCircle } from "lucide-react";
+import { UploadCloud, LayoutDashboard, DollarSign, Package, MessageSquare, Bell, Send, CheckCircle, AlertTriangle, Info, LogOut, Search, X, Copy, Check, Sparkles, TrendingUp, Database, FileText, User, Trash2, Menu, Mail, Activity, RefreshCw, Plug, Layers, Zap, ShieldAlert, ArrowUpRight, ArrowDownRight, Eye, ChevronRight, Sliders, CheckCircle2, AlertCircle, Store, CreditCard, PlusCircle, ArrowRight, Clock } from "lucide-react";
 
 export default function App() {
   const [token, setToken] = useState<string | null>(() => {
@@ -66,6 +66,17 @@ export default function App() {
   const [isSimulatingStream, setIsSimulatingStream] = useState(false);
   const [streamToast, setStreamToast] = useState<{ message: string; type: "success" | "info" | "warning" } | null>(null);
   const [copiedWebhook, setCopiedWebhook] = useState(false);
+
+  // Small Business Zero-Code Integration States
+  const [googleSheetUrl, setGoogleSheetUrl] = useState("");
+  const [isSyncingSheet, setIsSyncingSheet] = useState(false);
+  const [sheetSyncResult, setSheetSyncResult] = useState<string>("");
+  const [quickSaleAmount, setQuickSaleAmount] = useState("");
+  const [quickSaleCategory, setQuickSaleCategory] = useState("Tech Box");
+  const [quickSaleChannel, setQuickSaleChannel] = useState("In-Store POS");
+  const [quickSaleNote, setQuickSaleNote] = useState("");
+  const [isRecordingSale, setIsRecordingSale] = useState(false);
+  const [quickSaleFeedback, setQuickSaleFeedback] = useState<string>("");
 
   // Insights tab state
   const [insightFilter, setInsightFilter] = useState("all");
@@ -277,6 +288,55 @@ export default function App() {
       setBamAlerts(prev => prev.map(a => ({ ...a, is_read: 1 })));
     } catch {
       // silent
+    }
+  };
+
+  // Small Business: 1-Click Google Sheet Sync
+  const handleSyncGoogleSheet = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!googleSheetUrl.trim()) return;
+    setIsSyncingSheet(true);
+    setSheetSyncResult("");
+    try {
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      const res = await axios.post(`${API_BASE}/api/bam/sync-google-sheet`, { sheet_url: googleSheetUrl }, config);
+      setSheetSyncResult("✅ " + res.data.message);
+      setGoogleSheetUrl("");
+      await syncBAMPulse(false);
+      fetchAllData();
+    } catch (e: any) {
+      setSheetSyncResult("❌ " + (e.response?.data?.detail || "Could not sync sheet. Ensure sharing is 'Anyone with link can view'."));
+    } finally {
+      setIsSyncingSheet(false);
+    }
+  };
+
+  // Small Business: Quick POS / Walk-in Sale Entry
+  const handleRecordQuickSale = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const val = parseFloat(quickSaleAmount);
+    if (isNaN(val) || val <= 0) return;
+    setIsRecordingSale(true);
+    setQuickSaleFeedback("");
+    try {
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      const res = await axios.post(`${API_BASE}/api/bam/quick-sale`, {
+        amount: val,
+        category: quickSaleCategory,
+        channel: quickSaleChannel,
+        customer_name: quickSaleChannel === "In-Store POS" ? "Walk-in Buyer" : "Direct Order",
+        note: quickSaleNote || undefined
+      }, config);
+      setQuickSaleFeedback("✅ " + res.data.message);
+      setQuickSaleAmount("");
+      setQuickSaleNote("");
+      setTimeout(() => setQuickSaleFeedback(""), 4000);
+      await syncBAMPulse(false);
+      fetchAllData();
+    } catch {
+      setQuickSaleFeedback("❌ Failed to record sale.");
+    } finally {
+      setIsRecordingSale(false);
     }
   };
 
@@ -1889,147 +1949,318 @@ export default function App() {
           </div>
         )}
 
-        {/* BAM Feature 3: Data Integration Hub (ERP, CRM, Databases, IoT) */}
+        {/* Zero-Code Small Business Data Connections */}
         {activeTab === "integrations" && (
           <div className="flex flex-col gap-8 animate-in fade-in duration-500 max-w-5xl mx-auto w-full">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-2">
               <div>
                 <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-50 border border-blue-200 rounded-full text-blue-700 text-xs font-bold mb-2">
-                  <Plug size={13} className="text-blue-600" /> BAM External Gateway
+                  <Plug size={13} className="text-blue-600" /> Automated Store & Tool Connections
                 </div>
-                <h2 className="text-3xl font-extrabold text-gray-900 tracking-tight">Data Integration Hub</h2>
-                <p className="text-gray-500 mt-1">Connect ERPs, CRMs, POS terminals, and IoT pipelines for live automated ingestion.</p>
+                <h2 className="text-3xl font-extrabold text-gray-900 tracking-tight">Zero-Code Business Integrations</h2>
+                <p className="text-gray-500 mt-1">Connect your spreadsheets, stores, and payment registers with zero technical knowledge.</p>
               </div>
 
               <button
                 onClick={handleSimulateStream}
                 disabled={isSimulatingStream}
-                className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold rounded-2xl shadow-lg shadow-blue-500/20 hover:shadow-xl transition-all active:scale-95 cursor-pointer disabled:opacity-50"
+                className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold rounded-2xl shadow-lg shadow-blue-500/20 hover:shadow-xl transition-all active:scale-95 cursor-pointer disabled:opacity-50 text-sm"
               >
                 <Zap size={16} className={isSimulatingStream ? "animate-spin text-yellow-300" : "text-yellow-300"} />
-                {isSimulatingStream ? "Streaming Event..." : "Simulate Live Ingest Event"}
+                {isSimulatingStream ? "Ingesting..." : "Simulate Incoming Sale"}
               </button>
             </div>
 
-            {/* Ingestion Endpoint Card */}
-            <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl">
-                    <Database size={22} />
+            {/* Top 2 Zero-Code Cards: Google Sheets & Quick In-Store Sale Entry */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* Card 1: 1-Click Google Sheets Auto-Sync */}
+              <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 bg-emerald-100 text-emerald-700 rounded-2xl flex items-center justify-center font-bold text-xl shadow-sm">
+                        📊
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-bold text-gray-900">Google Sheets Live Sync</h3>
+                        <p className="text-xs text-gray-500">Keep your spreadsheet; your dashboard auto-syncs</p>
+                      </div>
+                    </div>
+                    <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold rounded-full">
+                      1-Click Ready
+                    </span>
                   </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-gray-900">Inbound Webhook & REST API</h3>
-                    <p className="text-xs text-gray-500">POST real-time JSON transactions directly into your database</p>
-                  </div>
+
+                  <p className="text-xs text-gray-600 leading-relaxed mb-4">
+                    Paste the sharing link to your Google Sheet below. Anytime you or your staff add new rows in Google Sheets, click sync to update your dashboard instantly.
+                  </p>
+
+                  <form onSubmit={handleSyncGoogleSheet} className="flex flex-col gap-3">
+                    <input
+                      type="url"
+                      placeholder="https://docs.google.com/spreadsheets/d/..."
+                      value={googleSheetUrl}
+                      onChange={(e) => setGoogleSheetUrl(e.target.value)}
+                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all font-mono"
+                      required
+                    />
+
+                    {sheetSyncResult && (
+                      <div className={`p-3 rounded-xl text-xs font-semibold ${sheetSyncResult.startsWith('✅') ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
+                        {sheetSyncResult}
+                      </div>
+                    )}
+
+                    <button
+                      type="submit"
+                      disabled={isSyncingSheet || !googleSheetUrl.trim()}
+                      className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold rounded-xl text-xs shadow-md shadow-emerald-600/20 hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <RefreshCw size={14} className={isSyncingSheet ? "animate-spin" : ""} />
+                      {isSyncingSheet ? "Syncing Google Sheet..." : "Sync Sheet with Dashboard"}
+                    </button>
+                  </form>
                 </div>
-                <span className="px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold rounded-full flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span> Live & Listening
+
+                <div className="mt-5 pt-4 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-400 font-medium">
+                  <span>Sheet Sharing: "Anyone with link can view"</span>
+                  <span className="text-emerald-600 font-bold">Auto column mapping</span>
+                </div>
+              </div>
+
+              {/* Card 2: Quick POS / Walk-in Sale Entry */}
+              <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 bg-blue-100 text-blue-700 rounded-2xl flex items-center justify-center font-bold text-xl shadow-sm">
+                        🛒
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-bold text-gray-900">Quick In-Store Sale Entry</h3>
+                        <p className="text-xs text-gray-500">Record counter sales, phone orders, or cash</p>
+                      </div>
+                    </div>
+                    <span className="px-2.5 py-1 bg-blue-50 text-blue-700 border border-blue-200 text-[11px] font-bold rounded-full">
+                      Point-of-Sale
+                    </span>
+                  </div>
+
+                  <form onSubmit={handleRecordQuickSale} className="flex flex-col gap-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-bold text-gray-700 mb-1">Sale Amount ($)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          placeholder="e.g. 150.00"
+                          value={quickSaleAmount}
+                          onChange={(e) => setQuickSaleAmount(e.target.value)}
+                          className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold outline-none focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-gray-700 mb-1">Category</label>
+                        <select
+                          value={quickSaleCategory}
+                          onChange={(e) => setQuickSaleCategory(e.target.value)}
+                          className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold outline-none focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
+                        >
+                          {inventoryData.length > 0 ? (
+                            inventoryData.map(i => <option key={i.category} value={i.category}>{i.category}</option>)
+                          ) : (
+                            <>
+                              <option value="Tech Box">Tech Box</option>
+                              <option value="Coffee Box">Coffee Box</option>
+                              <option value="Snack Box">Snack Box</option>
+                              <option value="Book Box">Book Box</option>
+                            </>
+                          )}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-bold text-gray-700 mb-1">Channel / Payment</label>
+                        <select
+                          value={quickSaleChannel}
+                          onChange={(e) => setQuickSaleChannel(e.target.value)}
+                          className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold outline-none focus:bg-white focus:border-blue-500 transition-all"
+                        >
+                          <option value="In-Store POS">In-Store Register</option>
+                          <option value="Cash Sale">Cash at Counter</option>
+                          <option value="Phone Order">Phone / WhatsApp Order</option>
+                          <option value="Shopify POS">Shopify Store</option>
+                          <option value="Direct Invoice">Direct B2B Invoice</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-gray-700 mb-1">Note (Optional)</label>
+                        <input
+                          type="text"
+                          placeholder="SKU or Customer Name"
+                          value={quickSaleNote}
+                          onChange={(e) => setQuickSaleNote(e.target.value)}
+                          className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:bg-white focus:border-blue-500 transition-all"
+                        />
+                      </div>
+                    </div>
+
+                    {quickSaleFeedback && (
+                      <div className="p-2.5 rounded-xl text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                        {quickSaleFeedback}
+                      </div>
+                    )}
+
+                    <button
+                      type="submit"
+                      disabled={isRecordingSale || !quickSaleAmount}
+                      className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold rounded-xl text-xs shadow-md shadow-blue-600/20 hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer mt-1"
+                    >
+                      <PlusCircle size={14} />
+                      {isRecordingSale ? "Recording..." : "Record Sale (+Add to Dashboard)"}
+                    </button>
+                  </form>
+                </div>
+
+                <div className="mt-4 pt-3 border-t border-gray-100 text-[11px] text-gray-400 font-medium">
+                  Instant inventory deduction and live KPI update
+                </div>
+              </div>
+            </div>
+
+            {/* 1-Click Connected Store Cards (Zero Technical Setup) */}
+            <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6">
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900">Connected Sales Channels</h3>
+                  <p className="text-xs text-gray-500">Your store and payment systems automatically send orders here</p>
+                </div>
+                <span className="text-xs text-emerald-600 font-bold flex items-center gap-1.5 self-start sm:self-auto">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> 3 Channels Active
                 </span>
               </div>
 
-              <div className="flex items-center gap-2 p-3.5 bg-gray-50 rounded-2xl border border-gray-200/80 mb-4">
-                <span className="px-2 py-1 bg-blue-600 text-white text-[11px] font-mono font-bold rounded-md">POST</span>
-                <code className="text-xs font-mono text-gray-700 flex-1 truncate">
-                  https://bia-project-nine.vercel.app/api/bam/ingest
-                </code>
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText("https://bia-project-nine.vercel.app/api/bam/ingest");
-                    setCopiedWebhook(true);
-                    setTimeout(() => setCopiedWebhook(false), 2000);
-                  }}
-                  className="px-3 py-1.5 bg-white hover:bg-gray-100 border border-gray-200 rounded-xl text-xs font-bold text-gray-700 flex items-center gap-1.5 transition-colors cursor-pointer"
-                >
-                  {copiedWebhook ? <Check size={14} className="text-emerald-600" /> : <Copy size={14} />}
-                  {copiedWebhook ? "Copied" : "Copy"}
-                </button>
-              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                {/* Shopify */}
+                <div className="p-5 bg-gradient-to-br from-emerald-50/60 to-white rounded-2xl border border-emerald-100 shadow-sm flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-2xl">🛍️</span>
+                        <div>
+                          <h4 className="text-sm font-extrabold text-gray-900">Shopify Store</h4>
+                          <p className="text-[10px] text-gray-500">E-Commerce Storefront</p>
+                        </div>
+                      </div>
+                      <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded-full">
+                        Connected
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-600 leading-relaxed mb-4">
+                      Customer checkout orders are automatically captured and reflected on your dashboard every 15 minutes.
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleSimulateStream}
+                    className="w-full py-2 bg-emerald-600/10 hover:bg-emerald-600 text-emerald-800 hover:text-white rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    <Zap size={13} /> Test Shopify Order Sync
+                  </button>
+                </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6 pt-6 border-t border-gray-100">
-                <div className="p-4 bg-gray-50/70 rounded-2xl border border-gray-100">
-                  <p className="text-xs font-bold text-gray-500 mb-1">Payload Format</p>
-                  <p className="text-sm font-extrabold text-gray-900">JSON Batch or Single</p>
+                {/* Stripe Payments */}
+                <div className="p-5 bg-gradient-to-br from-indigo-50/60 to-white rounded-2xl border border-indigo-100 shadow-sm flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-2xl">💳</span>
+                        <div>
+                          <h4 className="text-sm font-extrabold text-gray-900">Stripe & Card Swipes</h4>
+                          <p className="text-[10px] text-gray-500">Credit & Debit Payments</p>
+                        </div>
+                      </div>
+                      <span className="px-2 py-0.5 bg-indigo-100 text-indigo-800 text-[10px] font-bold rounded-full">
+                        Connected
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-600 leading-relaxed mb-4">
+                      Credit and debit card transactions are synchronized into your daily revenue and net cashflow totals.
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleSimulateStream}
+                    className="w-full py-2 bg-indigo-600/10 hover:bg-indigo-600 text-indigo-800 hover:text-white rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    <Zap size={13} /> Test Payment Sync
+                  </button>
                 </div>
-                <div className="p-4 bg-gray-50/70 rounded-2xl border border-gray-100">
-                  <p className="text-xs font-bold text-gray-500 mb-1">Authentication</p>
-                  <p className="text-sm font-extrabold text-gray-900">Bearer Token Header</p>
-                </div>
-                <div className="p-4 bg-gray-50/70 rounded-2xl border border-gray-100">
-                  <p className="text-xs font-bold text-gray-500 mb-1">Latency</p>
-                  <p className="text-sm font-extrabold text-emerald-600">&lt; 85ms Ingestion</p>
-                </div>
-                <div className="p-4 bg-gray-50/70 rounded-2xl border border-gray-100">
-                  <p className="text-xs font-bold text-gray-500 mb-1">Triggers</p>
-                  <p className="text-sm font-extrabold text-blue-600">Auto BAM Evaluation</p>
+
+                {/* Counter POS Terminal */}
+                <div className="p-5 bg-gradient-to-br from-blue-50/60 to-white rounded-2xl border border-blue-100 shadow-sm flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-2xl">📟</span>
+                        <div>
+                          <h4 className="text-sm font-extrabold text-gray-900">Square / Counter Register</h4>
+                          <p className="text-[10px] text-gray-500">Walk-in POS Hardware</p>
+                        </div>
+                      </div>
+                      <span className="px-2 py-0.5 bg-blue-100 text-blue-800 text-[10px] font-bold rounded-full">
+                        Listening
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-600 leading-relaxed mb-4">
+                      Walk-in counter register receipts automatically record to update inventory remaining in real-time.
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleSimulateStream}
+                    className="w-full py-2 bg-blue-600/10 hover:bg-blue-600 text-blue-800 hover:text-white rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    <Zap size={13} /> Test Counter Receipt Sync
+                  </button>
                 </div>
               </div>
             </div>
 
-            {/* Supported Systems Grid */}
+            {/* Non-Technical Sync History */}
             <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
-              <h3 className="text-lg font-bold text-gray-900 mb-2">Supported Enterprise Connectors</h3>
-              <p className="text-xs text-gray-500 mb-6">Zero-configuration connector bridges ready for plug-and-play streaming</p>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
+                    <Clock size={18} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900">Recent Automatic Sync Log</h3>
+                    <p className="text-xs text-gray-500">Transactions received automatically from your business channels</p>
+                  </div>
+                </div>
+                <span className="text-xs text-gray-400 font-medium">Auto-updated</span>
+              </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-                {[
-                  { name: "SAP ERP", category: "ERP System", icon: "🏢" },
-                  { name: "Salesforce", category: "CRM Feed", icon: "☁️" },
-                  { name: "Shopify POS", category: "E-Commerce", icon: "🛍️" },
-                  { name: "Stripe", category: "Payments", icon: "💳" },
-                  { name: "Oracle NetSuite", category: "Cloud ERP", icon: "🔴" },
-                  { name: "IoT POS Gate", category: "Hardware Sensors", icon: "📡" }
-                ].map((conn, idx) => (
-                  <div key={idx} className="p-4 bg-gray-50/80 rounded-2xl border border-gray-200/60 flex flex-col items-center text-center hover:bg-blue-50/50 hover:border-blue-200 transition-all">
-                    <span className="text-2xl mb-2">{conn.icon}</span>
-                    <p className="text-xs font-extrabold text-gray-900 leading-tight">{conn.name}</p>
-                    <p className="text-[10px] text-gray-500 mt-1">{conn.category}</p>
-                    <span className="mt-3 px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[9px] font-bold rounded-full">
-                      Ready
-                    </span>
+              <div className="divide-y divide-gray-100">
+                {(bamLive?.live_stream || []).slice(0, 5).map((item: any) => (
+                  <div key={item.id} className="py-3.5 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center text-sm font-bold">
+                        {item.source.includes("Shopify") ? "🛍️" : item.source.includes("Stripe") ? "💳" : item.source.includes("POS") ? "🛒" : "📊"}
+                      </div>
+                      <div>
+                        <p className="text-xs font-extrabold text-gray-900">{item.source}: {item.category}</p>
+                        <p className="text-[11px] text-gray-500">SKU: {item.product_sku} • Customer: {item.customer_id}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs font-extrabold text-emerald-700">+${item.amount.toLocaleString()}</p>
+                      <span className="text-[10px] text-gray-400 font-medium">{item.date}</span>
+                    </div>
                   </div>
                 ))}
               </div>
-            </div>
-
-            {/* Quickstart Code Example */}
-            <div className="bg-slate-900 text-white p-8 rounded-3xl shadow-xl border border-white/10">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                  <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-                  <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                  <span className="ml-2 text-xs font-mono text-gray-400">cURL Integration Snippet</span>
-                </div>
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(`curl -X POST https://bia-project-nine.vercel.app/api/bam/ingest \\
-  -H "Content-Type: application/json" \\
-  -H "Authorization: Bearer YOUR_TOKEN" \\
-  -d '{"source_system":"Shopify POS","transactions":[{"amount":2450.0,"category":"Tech Box","product_sku":"TB-PRO-9","customer_id":"CUST-104"}]}'`);
-                    alert("cURL snippet copied to clipboard!");
-                  }}
-                  className="text-xs text-blue-400 hover:text-blue-300 font-mono font-bold cursor-pointer"
-                >
-                  Copy Snippet
-                </button>
-              </div>
-              <pre className="text-xs font-mono text-blue-200/90 overflow-x-auto p-4 bg-slate-950/70 rounded-2xl border border-white/5 leading-relaxed">
-{`curl -X POST https://bia-project-nine.vercel.app/api/bam/ingest \\
-  -H "Content-Type: application/json" \\
-  -H "Authorization: Bearer YOUR_TOKEN" \\
-  -d '{
-    "source_system": "ERP Gateway",
-    "transactions": [
-      {
-        "amount": 2450.0,
-        "category": "Tech Box",
-        "product_sku": "TB-PRO-9",
-        "customer_id": "CUST-104"
-      }
-    ]
-  }'`}
-              </pre>
             </div>
           </div>
         )}
