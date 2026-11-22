@@ -325,6 +325,70 @@ def simulate_live_erp_event(
         }
     }
 
+@router.post("/seed-demo-data")
+def seed_sample_store_data(
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id)
+):
+    """Populates realistic 30-day demo transactions for new workspaces so charts aren't blank."""
+    demo_products = [
+        {"cat": "Tech Box", "sku": "TB-PRO-9", "price_min": 150.0, "price_max": 450.0},
+        {"cat": "Coffee Box", "sku": "CB-ARABICA", "price_min": 25.0, "price_max": 85.0},
+        {"cat": "Snack Box", "sku": "SB-CRUNCH", "price_min": 18.0, "price_max": 55.0},
+        {"cat": "Book Box", "sku": "BB-CLASSIC", "price_min": 30.0, "price_max": 95.0},
+    ]
+    sources = ["Shopify Store", "In-Store Register", "Stripe Checkout", "Square Terminal"]
+    
+    now = datetime.now()
+    created_txs = []
+    
+    # Generate 25 transactions spread across the last 30 days
+    for i in range(25):
+        days_ago = random.randint(0, 28)
+        tx_date = (now - timedelta(days=days_ago)).strftime("%Y-%m-%d")
+        prod = random.choice(demo_products)
+        amount = round(random.uniform(prod["price_min"], prod["price_max"]), 2)
+        source = random.choice(sources)
+        
+        tx = Transaction(
+            user_id=user_id,
+            date=tx_date,
+            amount=amount,
+            category=prod["cat"],
+            product_sku=prod["sku"],
+            customer_id=f"CUST-{random.randint(101, 899)}",
+            raw_data={"source": source, "timestamp": (now - timedelta(days=days_ago, hours=random.randint(1, 10))).isoformat()}
+        )
+        created_txs.append(tx)
+        db.add(tx)
+
+    # Add welcome notifications
+    notif1 = AlertNotification(
+        user_id=user_id,
+        title="Sample Store Data Activated",
+        message="25 realistic sales transactions loaded across 4 product categories. Explore your charts & AI agent!",
+        severity="success",
+        metric_type="system",
+        is_read=0
+    )
+    notif2 = AlertNotification(
+        user_id=user_id,
+        title="High Velocity Product: Tech Box",
+        message="Tech Box is currently generating the highest revenue share. Inventory threshold monitoring active.",
+        severity="info",
+        metric_type="sales",
+        is_read=0
+    )
+    db.add(notif1)
+    db.add(notif2)
+    db.commit()
+
+    return {
+        "status": "success",
+        "message": "Successfully loaded sample store data!",
+        "count": len(created_txs)
+    }
+
 @router.post("/quick-sale")
 def record_quick_sale(
     req: QuickSaleRequest,

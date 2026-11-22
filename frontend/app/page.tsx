@@ -5,7 +5,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 const API_BASE = "";
 import axios from "axios";
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
-import { UploadCloud, LayoutDashboard, DollarSign, Package, MessageSquare, Bell, Send, CheckCircle, AlertTriangle, Info, LogOut, Search, X, Copy, Check, Sparkles, TrendingUp, Database, FileText, User, Trash2, Menu, Mail, Activity, RefreshCw, Plug, Layers, Zap, ShieldAlert, ArrowUpRight, ArrowDownRight, Eye, ChevronRight, Sliders, CheckCircle2, AlertCircle, Store, CreditCard, PlusCircle, ArrowRight, Clock } from "lucide-react";
+import { UploadCloud, LayoutDashboard, DollarSign, Package, MessageSquare, Bell, Send, CheckCircle, AlertTriangle, Info, LogOut, Search, X, Copy, Check, Sparkles, TrendingUp, Database, FileText, User, Trash2, Menu, Mail, Activity, RefreshCw, Plug, Layers, Zap, ShieldAlert, ArrowUpRight, ArrowDownRight, Eye, ChevronRight, Sliders, CheckCircle2, AlertCircle, Store, CreditCard, PlusCircle, ArrowRight, Clock, BarChart3, PieChart as PieChartIcon } from "lucide-react";
 
 export default function App() {
   const [token, setToken] = useState<string | null>(() => {
@@ -64,6 +64,7 @@ export default function App() {
 
   // BAM Ingestion & Simulation State
   const [isSimulatingStream, setIsSimulatingStream] = useState(false);
+  const [isLoadingDemo, setIsLoadingDemo] = useState(false);
   const [streamToast, setStreamToast] = useState<{ message: string; type: "success" | "info" | "warning" } | null>(null);
   const [copiedWebhook, setCopiedWebhook] = useState(false);
 
@@ -263,11 +264,19 @@ export default function App() {
       const config = { headers: { Authorization: `Bearer ${token}` } };
       const res = await axios.post(`${API_BASE}/api/bam/simulate-stream`, {}, config);
       setStreamToast({
-        message: `⚡ Live Ingest: Processed $${res.data.transaction.amount.toFixed(2)} in ${res.data.transaction.category} from ${res.data.transaction.source}`,
+        message: `⚡ Live Sale Processed: $${res.data.transaction.amount.toFixed(2)} in ${res.data.transaction.category} from ${res.data.transaction.source}`,
         type: "success"
       });
       setTimeout(() => setStreamToast(null), 5000);
       await syncBAMPulse(false);
+      const [oRes, cRes, iRes] = await Promise.all([
+        axios.get(`${API_BASE}/api/overview`, config).catch(() => null),
+        axios.get(`${API_BASE}/api/cashflow`, config).catch(() => null),
+        axios.get(`${API_BASE}/api/inventory`, config).catch(() => null),
+      ]);
+      if (oRes?.data) setOverviewData(oRes.data);
+      if (cRes?.data) setCashflowData(cRes.data);
+      if (iRes?.data) setInventoryData(iRes.data);
     } catch {
       setStreamToast({
         message: "Simulation failed. Please verify network.",
@@ -276,6 +285,36 @@ export default function App() {
       setTimeout(() => setStreamToast(null), 4000);
     } finally {
       setIsSimulatingStream(false);
+    }
+  };
+
+  const handleLoadDemoData = async () => {
+    setIsLoadingDemo(true);
+    try {
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      await axios.post(`${API_BASE}/api/bam/seed-demo-data`, {}, config);
+      await syncBAMPulse(false);
+      const [oRes, cRes, iRes] = await Promise.all([
+        axios.get(`${API_BASE}/api/overview`, config).catch(() => null),
+        axios.get(`${API_BASE}/api/cashflow`, config).catch(() => null),
+        axios.get(`${API_BASE}/api/inventory`, config).catch(() => null),
+      ]);
+      if (oRes?.data) setOverviewData(oRes.data);
+      if (cRes?.data) setCashflowData(cRes.data);
+      if (iRes?.data) setInventoryData(iRes.data);
+      setStreamToast({
+        message: "⚡ Sample Store Activated: 25 live sales & inventory metrics loaded!",
+        type: "success"
+      });
+      setTimeout(() => setStreamToast(null), 5000);
+    } catch (e: any) {
+      setStreamToast({
+        message: "Failed to load sample store: " + (e.response?.data?.detail || e.message),
+        type: "warning"
+      });
+      setTimeout(() => setStreamToast(null), 4000);
+    } finally {
+      setIsLoadingDemo(false);
     }
   };
 
@@ -1424,6 +1463,42 @@ export default function App() {
                 <FileText size={16} /> Export Report
               </button>
             </div>
+
+            {/* Quick Start / Demo Store Banner when no data */}
+            {((overviewData?.revenue_trend || []).length === 0 && (processedInventoryData || []).length === 0) && (
+              <div className="mb-8 p-6 bg-gradient-to-r from-blue-900/40 via-indigo-900/40 to-slate-900/90 backdrop-blur-xl border border-blue-500/30 rounded-3xl shadow-xl flex flex-col md:flex-row items-center justify-between gap-5 animate-in fade-in duration-500">
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 rounded-2xl bg-blue-600/30 border border-blue-400/30 text-blue-300 flex items-center justify-center shrink-0 shadow-lg shadow-blue-500/20">
+                    <Sparkles size={28} />
+                  </div>
+                  <div>
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 text-[10px] font-bold uppercase tracking-wider mb-1">
+                      New Business Workspace
+                    </div>
+                    <h3 className="text-lg font-bold text-white">Welcome to your AI Business Agent!</h3>
+                    <p className="text-xs text-slate-300 mt-0.5 max-w-xl">
+                      Your store has no orders yet. Load sample store data with one click to see all charts, scorecards, and AI analytics in action, or connect your real spreadsheets & registers.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2.5 shrink-0 w-full md:w-auto">
+                  <button
+                    onClick={handleLoadDemoData}
+                    disabled={isLoadingDemo}
+                    className="flex-1 md:flex-initial flex items-center justify-center gap-2 px-5 py-3 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white font-bold rounded-2xl text-xs shadow-lg shadow-blue-500/30 transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    <Zap size={14} className="text-yellow-300" />
+                    {isLoadingDemo ? "Loading Sample Store..." : "Load Sample Store Data"}
+                  </button>
+                  <button
+                    onClick={() => setActiveTab("integrations")}
+                    className="flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-3 bg-slate-900/80 hover:bg-slate-800 text-slate-200 border border-slate-700/80 font-bold rounded-2xl text-xs transition-all cursor-pointer"
+                  >
+                    <Plug size={14} /> Connect Tools
+                  </button>
+                </div>
+              </div>
+            )}
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-5 mb-8">
               <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100/50 relative overflow-hidden group hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
@@ -1599,27 +1674,55 @@ export default function App() {
                     <p className="text-sm text-gray-500">Revenue trajectory over time</p>
                   </div>
                 </div>
-                <div className="flex-1 w-full min-h-0 overflow-x-auto overflow-y-hidden">
+                {(overviewData.revenue_trend || []).length > 0 ? (
+                  <div className="flex-1 w-full min-h-0 overflow-x-auto overflow-y-hidden">
                     <div className="w-full h-full outline-none focus:outline-none select-none">
                       <ResponsiveContainer width="100%" height="100%" className="outline-none focus:outline-none">
                         <LineChart data={overviewData.revenue_trend} margin={{ top: 10, right: 20, left: 0, bottom: 20 }} style={{ outline: 'none' }}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
-                        <XAxis dataKey="date" stroke="#9ca3af" axisLine={false} tickLine={false} />
-                        <YAxis 
-                          stroke="#9ca3af" 
-                          axisLine={false} 
-                          tickLine={false} 
-                          tickFormatter={(value) => `$${formatCompact(value)}`}
-                        />
-                        <Tooltip 
-                          contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                          formatter={(value: any) => [`$${value.toLocaleString()}`, 'Revenue']}
-                        />
-                        <Line type="monotone" dataKey="revenue" stroke="#3b82f6" strokeWidth={4} dot={false} activeDot={{ r: 6, fill: '#2563eb' }} />
-                      </LineChart>
-                    </ResponsiveContainer>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                          <XAxis dataKey="date" stroke="#9ca3af" axisLine={false} tickLine={false} />
+                          <YAxis 
+                            stroke="#9ca3af" 
+                            axisLine={false} 
+                            tickLine={false} 
+                            tickFormatter={(value) => `$${formatCompact(value)}`}
+                          />
+                          <Tooltip 
+                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                            formatter={(value: any) => [`$${value.toLocaleString()}`, 'Revenue']}
+                          />
+                          <Line type="monotone" dataKey="revenue" stroke="#3b82f6" strokeWidth={4} dot={false} activeDot={{ r: 6, fill: '#2563eb' }} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="flex-1 flex flex-col items-center justify-center text-center p-6 border-2 border-dashed border-slate-200/90 rounded-2xl bg-slate-50/60">
+                    <div className="w-14 h-14 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center mb-3 shadow-sm">
+                      <TrendingUp size={26} />
+                    </div>
+                    <h4 className="text-sm font-bold text-slate-800 mb-1">Awaiting Sales Transactions</h4>
+                    <p className="text-xs text-slate-500 max-w-xs mb-4">
+                      Daily revenue trajectory will plot here automatically as customer orders arrive.
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <button 
+                        onClick={handleLoadDemoData}
+                        disabled={isLoadingDemo}
+                        className="px-3.5 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      >
+                        <Zap size={13} className="text-yellow-300" />
+                        {isLoadingDemo ? "Loading..." : "Load Demo Data"}
+                      </button>
+                      <button 
+                        onClick={() => setActiveTab("integrations")}
+                        className="px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-semibold transition-all cursor-pointer"
+                      >
+                        Connect Store
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
              {/* Bar Chart Container */}
@@ -1633,7 +1736,8 @@ export default function App() {
                     <Sliders size={12} /> Clickable
                   </span>
                 </div>
-                <div className="flex-1 w-full min-h-0 overflow-x-auto overflow-y-hidden">
+                {(processedInventoryData || []).length > 0 ? (
+                  <div className="flex-1 w-full min-h-0 overflow-x-auto overflow-y-hidden">
                     <div className="w-full h-full outline-none focus:outline-none select-none">
                       <ResponsiveContainer width="100%" height="100%" className="outline-none focus:outline-none">
                         <BarChart 
@@ -1645,28 +1749,55 @@ export default function App() {
                           }}
                           className="cursor-pointer"
                         >
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
-                        <XAxis 
-                          dataKey="category" 
-                          stroke="#9ca3af" 
-                          interval={0} 
-                          angle={-45} 
-                          textAnchor="end" 
-                          height={60}
-                          axisLine={false}
-                          tickLine={false}
-                          tick={{ fontSize: 12, fill: '#6b7280' }}
-                        />
-                        <YAxis stroke="#9ca3af" axisLine={false} tickLine={false} />
-                        <Tooltip 
-                          cursor={{ fill: '#eff6ff' }}
-                          contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                        />
-                        <Bar dataKey="sold" fill="#3b82f6" radius={[6, 6, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                          <XAxis 
+                            dataKey="category" 
+                            stroke="#9ca3af" 
+                            interval={0} 
+                            angle={-45} 
+                            textAnchor="end" 
+                            height={60}
+                            axisLine={false}
+                            tickLine={false}
+                            tick={{ fontSize: 12, fill: '#6b7280' }}
+                          />
+                          <YAxis stroke="#9ca3af" axisLine={false} tickLine={false} />
+                          <Tooltip 
+                            cursor={{ fill: '#eff6ff' }}
+                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                          />
+                          <Bar dataKey="sold" fill="#3b82f6" radius={[6, 6, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="flex-1 flex flex-col items-center justify-center text-center p-6 border-2 border-dashed border-slate-200/90 rounded-2xl bg-slate-50/60">
+                    <div className="w-14 h-14 rounded-2xl bg-purple-100 text-purple-600 flex items-center justify-center mb-3 shadow-sm">
+                      <BarChart3 size={26} />
+                    </div>
+                    <h4 className="text-sm font-bold text-slate-800 mb-1">No Category Sales Yet</h4>
+                    <p className="text-xs text-slate-500 max-w-xs mb-4">
+                      Units sold by product category will show here once orders or catalog items are recorded.
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <button 
+                        onClick={handleLoadDemoData}
+                        disabled={isLoadingDemo}
+                        className="px-3.5 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      >
+                        <Zap size={13} className="text-yellow-300" />
+                        {isLoadingDemo ? "Loading..." : "Load Demo Data"}
+                      </button>
+                      <button 
+                        onClick={() => setActiveTab("upload")}
+                        className="px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-semibold transition-all cursor-pointer"
+                      >
+                        Upload CSV
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1714,7 +1845,23 @@ export default function App() {
                       </PieChart>
                     </ResponsiveContainer>
                   ) : (
-                    <div className="text-gray-400 text-sm">Upload data to view category distribution</div>
+                    <div className="w-full h-full flex flex-col items-center justify-center text-center p-6 border-2 border-dashed border-slate-200/90 rounded-2xl bg-slate-50/60">
+                      <div className="w-14 h-14 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center mb-3 shadow-sm">
+                        <PieChartIcon size={26} />
+                      </div>
+                      <h4 className="text-sm font-bold text-slate-800 mb-1">Product Distribution Pending</h4>
+                      <p className="text-xs text-slate-500 max-w-xs mb-4">
+                        Share of revenue per product family will display here in an interactive donut breakdown.
+                      </p>
+                      <button 
+                        onClick={handleLoadDemoData}
+                        disabled={isLoadingDemo}
+                        className="px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      >
+                        <Zap size={13} className="text-yellow-300" />
+                        {isLoadingDemo ? "Loading..." : "Load Demo Data"}
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -1738,9 +1885,22 @@ export default function App() {
                 
                 <div className="flex-1 overflow-y-auto space-y-3 pr-1">
                   {(bamLive?.live_stream || []).length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center text-center text-gray-400 text-xs p-6">
-                      <Database size={32} className="mb-2 text-gray-300" />
-                      No live transactions recorded yet.<br />Click "Simulate Inbound Sale" above to test live order processing!
+                    <div className="h-full flex flex-col items-center justify-center text-center p-6 border-2 border-dashed border-slate-200/90 rounded-2xl bg-slate-50/60">
+                      <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center mb-2 shadow-sm">
+                        <Activity size={22} />
+                      </div>
+                      <h4 className="text-xs font-bold text-slate-800 mb-1">Awaiting Inbound Transactions</h4>
+                      <p className="text-[11px] text-slate-500 max-w-xs mb-3">
+                        Orders synced from Shopify, WooCommerce, or API will appear in real time.
+                      </p>
+                      <button 
+                        onClick={handleSimulateStream}
+                        disabled={isStreaming}
+                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      >
+                        <Zap size={12} className="text-yellow-300" />
+                        {isStreaming ? "Simulating..." : "Simulate Live Sale"}
+                      </button>
                     </div>
                   ) : (
                     bamLive.live_stream.slice(0, 7).map((item: any) => (
