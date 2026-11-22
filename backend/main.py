@@ -115,7 +115,7 @@ def get_user_profile(user_id: int = Depends(get_current_user_id), db: Session = 
 
 @app.delete("/api/user/files/{file_id}")
 def delete_user_file(file_id: int, user_id: int = Depends(get_current_user_id), db: Session = Depends(get_db)):
-    from models.database import Transaction
+    from models.database import Transaction, IntegrationSetting
     file_record = db.query(FileRecord).filter(FileRecord.id == file_id, FileRecord.user_id == user_id).first()
     if not file_record:
         raise HTTPException(status_code=404, detail="File not found")
@@ -126,7 +126,29 @@ def delete_user_file(file_id: int, user_id: int = Depends(get_current_user_id), 
     # Delete the file record
     db.delete(file_record)
     db.commit()
+
+    # If no files remain and no integrations connected, purge any unlinked transactions
+    remaining_files = db.query(FileRecord).filter(FileRecord.user_id == user_id).count()
+    connected_integrations = db.query(IntegrationSetting).filter(
+        IntegrationSetting.user_id == user_id,
+        IntegrationSetting.is_connected == 1
+    ).count()
+    if remaining_files == 0 and connected_integrations == 0:
+        db.query(Transaction).filter(Transaction.user_id == user_id).delete()
+        db.commit()
+
     return {"status": "Success", "message": "File and its data deleted."}
+
+@app.post("/api/user/reset-workspace")
+def reset_user_workspace(user_id: int = Depends(get_current_user_id), db: Session = Depends(get_db)):
+    """Purges all transactions, file records, and alerts for the user so workspace is a fresh clean slate."""
+    from models.database import Transaction, AlertNotification, IntegrationSetting
+    db.query(Transaction).filter(Transaction.user_id == user_id).delete()
+    db.query(FileRecord).filter(FileRecord.user_id == user_id).delete()
+    db.query(AlertNotification).filter(AlertNotification.user_id == user_id).delete()
+    db.query(IntegrationSetting).filter(IntegrationSetting.user_id == user_id).update({"is_connected": 0})
+    db.commit()
+    return {"status": "Success", "message": "All workspace data and transactions purged."}
 
 # 3. Lock the data routes
 @app.get("/api/analytics/overview")

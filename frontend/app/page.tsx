@@ -159,6 +159,25 @@ export default function App() {
   // Profile state
   const [userProfile, setUserProfile] = useState<{email: string, files: any[]} | null>(null);
 
+  // Connected Business Channels state
+  const [connectedIntegrations, setConnectedIntegrations] = useState<{
+    shopify: { connected: boolean; config: any };
+    stripe: { connected: boolean; config: any };
+    square: { connected: boolean; config: any };
+  }>({
+    shopify: { connected: false, config: {} },
+    stripe: { connected: false, config: {} },
+    square: { connected: false, config: {} }
+  });
+
+  const [activeConnectModal, setActiveConnectModal] = useState<"shopify" | "stripe" | "square" | null>(null);
+  const [connectDomain, setConnectDomain] = useState("");
+  const [connectApiKey, setConnectApiKey] = useState("");
+  const [connectSecretKey, setConnectSecretKey] = useState("");
+  const [isConnectingIntegration, setIsConnectingIntegration] = useState(false);
+  const [integrationError, setIntegrationError] = useState("");
+  const [isResettingWorkspace, setIsResettingWorkspace] = useState(false);
+
   const fetchProfile = async () => {
     try {
       const config = { headers: { Authorization: `Bearer ${token}` } };
@@ -175,18 +194,32 @@ export default function App() {
     }
   };
 
+  const fetchIntegrations = async () => {
+    if (!token) return;
+    try {
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      const res = await axios.get(API_BASE + "/api/bam/integrations", config);
+      if (res.data) {
+        setConnectedIntegrations(res.data);
+      }
+    } catch {
+      // Fallback
+    }
+  };
+
   const fetchAllData = async () => {
     try {
       const config = { headers: { Authorization: `Bearer ${token}` } };
       
-      const [overviewRes, cashflowRes, invRes, insightsRes, bamLiveRes, bamAlertsRes, bamScorecardsRes] = await Promise.all([
+      const [overviewRes, cashflowRes, invRes, insightsRes, bamLiveRes, bamAlertsRes, bamScorecardsRes, integrationsRes] = await Promise.all([
         axios.get(API_BASE + "/api/analytics/overview", config),
         axios.get(API_BASE + "/api/analytics/cashflow", config),
         axios.get(API_BASE + "/api/inventory", config),
         axios.get(API_BASE + "/api/insights", config),
         axios.get(API_BASE + "/api/bam/live", config).catch(() => ({ data: null })),
         axios.get(API_BASE + "/api/bam/alerts", config).catch(() => ({ data: { alerts: [], unread_count: 0 } })),
-        axios.get(API_BASE + "/api/bam/scorecards", config).catch(() => ({ data: null }))
+        axios.get(API_BASE + "/api/bam/scorecards", config).catch(() => ({ data: null })),
+        axios.get(API_BASE + "/api/bam/integrations", config).catch(() => ({ data: null }))
       ]);
 
       setOverviewData(overviewRes.data);
@@ -200,6 +233,7 @@ export default function App() {
         setUnreadAlertCount(bamAlertsRes.data.unread_count || 0);
       }
       if (bamScorecardsRes?.data) setBamScorecards(bamScorecardsRes.data);
+      if (integrationsRes?.data) setConnectedIntegrations(integrationsRes.data);
       setLastSyncTime(new Date().toLocaleTimeString());
     } catch (e: any) {
       console.log("No data found or unauthorized.");
@@ -264,71 +298,102 @@ export default function App() {
     }
   };
 
-  // Feature 3: Live Inbound ERP/CRM Stream Simulator
-  const handleSimulateStream = async () => {
-    setIsSimulatingStream(true);
+  // Real Store & Sales Channel Integrations
+  const handleConnectIntegration = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeConnectModal) return;
+    setIsConnectingIntegration(true);
+    setIntegrationError("");
     try {
       const config = { headers: { Authorization: `Bearer ${token}` } };
-      const res = await axios.post(`${API_BASE}/api/bam/simulate-stream`, {}, config);
-      setStreamToast({
-        message: `⚡ Live Sale Processed: $${res.data.transaction.amount.toFixed(2)} in ${res.data.transaction.category} from ${res.data.transaction.source}`,
-        type: "success"
-      });
-      setTimeout(() => setStreamToast(null), 5000);
-      await syncBAMPulse(false);
-      const [oRes, cRes, iRes] = await Promise.all([
-        axios.get(`${API_BASE}/api/analytics/overview`, config).catch(() => null),
-        axios.get(`${API_BASE}/api/analytics/cashflow`, config).catch(() => null),
-        axios.get(`${API_BASE}/api/inventory`, config).catch(() => null),
-      ]);
-      if (oRes?.data) setOverviewData(oRes.data);
-      if (cRes?.data) setCashflowData(cRes.data);
-      if (iRes?.data?.inventory) {
-        setInventoryData(iRes.data.inventory || []);
-        if (iRes.data.metrics) setInventoryMetrics(iRes.data.metrics);
+      const payload: any = { platform: activeConnectModal, config: {} };
+      if (activeConnectModal === "shopify") {
+        payload.config.store_domain = connectDomain || "my-store.myshopify.com";
+        payload.config.api_key = connectApiKey;
+      } else if (activeConnectModal === "stripe") {
+        payload.config.publishable_key = connectApiKey;
+        payload.config.secret_key = connectSecretKey;
+      } else if (activeConnectModal === "square") {
+        payload.config.application_id = connectApiKey;
+        payload.config.location_id = connectDomain || "Main POS Terminal";
       }
-    } catch {
-      setStreamToast({
-        message: "Simulation failed. Please verify network.",
-        type: "warning"
-      });
+      const res = await axios.post(`${API_BASE}/api/bam/integrations/connect`, payload, config);
+      setConnectedIntegrations(prev => ({
+        ...prev,
+        [activeConnectModal]: { connected: true, config: payload.config }
+      }));
+      setActiveConnectModal(null);
+      setConnectDomain("");
+      setConnectApiKey("");
+      setConnectSecretKey("");
+      setStreamToast({ message: `✅ ${res.data.message}`, type: "success" });
       setTimeout(() => setStreamToast(null), 4000);
+      await syncBAMPulse(false);
+      fetchAllData();
+    } catch (err: any) {
+      setIntegrationError(err.response?.data?.detail || "Failed to connect channel.");
     } finally {
-      setIsSimulatingStream(false);
+      setIsConnectingIntegration(false);
     }
   };
 
-  const handleLoadDemoData = async () => {
-    setIsLoadingDemo(true);
+  const handleDisconnectIntegration = async (platform: "shopify" | "stripe" | "square") => {
+    if (!window.confirm(`Disconnect ${platform.toUpperCase()} integration? Inbound webhooks will be paused.`)) return;
     try {
       const config = { headers: { Authorization: `Bearer ${token}` } };
-      await axios.post(`${API_BASE}/api/bam/seed-demo-data`, {}, config);
+      await axios.post(`${API_BASE}/api/bam/integrations/disconnect`, { platform }, config);
+      setConnectedIntegrations(prev => ({
+        ...prev,
+        [platform]: { connected: false, config: {} }
+      }));
+      setStreamToast({ message: `Disconnected ${platform.toUpperCase()}.`, type: "warning" });
+      setTimeout(() => setStreamToast(null), 3000);
       await syncBAMPulse(false);
-      const [oRes, cRes, iRes] = await Promise.all([
-        axios.get(`${API_BASE}/api/analytics/overview`, config).catch(() => null),
-        axios.get(`${API_BASE}/api/analytics/cashflow`, config).catch(() => null),
-        axios.get(`${API_BASE}/api/inventory`, config).catch(() => null),
-      ]);
-      if (oRes?.data) setOverviewData(oRes.data);
-      if (cRes?.data) setCashflowData(cRes.data);
-      if (iRes?.data?.inventory) {
-        setInventoryData(iRes.data.inventory || []);
-        if (iRes.data.metrics) setInventoryMetrics(iRes.data.metrics);
-      }
-      setStreamToast({
-        message: "⚡ Store Operations Initialized: Live sales & inventory metrics synchronized!",
-        type: "success"
-      });
-      setTimeout(() => setStreamToast(null), 5000);
-    } catch (e: any) {
-      setStreamToast({
-        message: "Failed to initialize store data: " + (e.response?.data?.detail || e.message),
-        type: "warning"
-      });
-      setTimeout(() => setStreamToast(null), 4000);
-    } finally {
-      setIsLoadingDemo(false);
+      fetchAllData();
+    } catch {
+      alert("Failed to disconnect integration.");
     }
+  };
+
+  const handleSyncIntegrationChannel = async (platform: "shopify" | "stripe" | "square") => {
+    try {
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      const res = await axios.post(`${API_BASE}/api/bam/integrations/sync`, { platform }, config);
+      setStreamToast({ message: `⚡ ${res.data.message}`, type: "success" });
+      setTimeout(() => setStreamToast(null), 4000);
+      await syncBAMPulse(false);
+      fetchAllData();
+    } catch (err: any) {
+      alert(err.response?.data?.detail || "Failed to sync channel.");
+    }
+  };
+
+  const handleResetWorkspace = async () => {
+    if (!window.confirm("Are you sure you want to completely clear all workspace data, transactions, and files? This will reset your workspace to a clean slate.")) {
+      return;
+    }
+    setIsResettingWorkspace(true);
+    try {
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      await axios.post(`${API_BASE}/api/user/reset-workspace`, {}, config);
+      setConnectedIntegrations({
+        shopify: { connected: false, config: {} },
+        stripe: { connected: false, config: {} },
+        square: { connected: false, config: {} }
+      });
+      setStreamToast({ message: "Workspace reset successfully. All transactions and files cleared.", type: "success" });
+      setTimeout(() => setStreamToast(null), 4000);
+      await fetchProfile();
+      await fetchAllData();
+    } catch (err: any) {
+      alert(err.response?.data?.detail || "Failed to reset workspace.");
+    } finally {
+      setIsResettingWorkspace(false);
+    }
+  };
+
+  const handleSimulateStream = () => {
+    setActiveTab("integrations");
   };
 
   // Feature 2: Mark All Alerts Read
@@ -718,9 +783,37 @@ export default function App() {
     }
   };
 
+  const activeChannelsCount = useMemo(() => {
+    return Object.values(connectedIntegrations).filter((c: any) => c?.connected).length;
+  }, [connectedIntegrations]);
+
+  const hasAnyData = useMemo(() => {
+    const hasFiles = Boolean(userProfile?.files && userProfile.files.length > 0);
+    const hasChannels = activeChannelsCount > 0;
+    return hasFiles || hasChannels;
+  }, [userProfile?.files, activeChannelsCount]);
+
   const totalUnitsSold = (Array.isArray(inventoryData) ? inventoryData : []).reduce((sum, item) => sum + (Number(item?.sold) || 0), 0);
   const avgUnitValue = totalUnitsSold > 0 && overviewData?.kpis?.total_revenue 
     ? parseFloat(String(overviewData?.kpis?.total_revenue || 0)) / totalUnitsSold : 0;
+
+  const displayTotalRevenue = hasAnyData ? (overviewData?.kpis?.total_revenue ?? 0) : 0;
+  const displayMomGrowth = hasAnyData ? (overviewData?.kpis?.mom_growth ?? 0) : 0;
+  const displayTotalUnits = hasAnyData ? totalUnitsSold : 0;
+  const displayAvgUnitValue = hasAnyData ? avgUnitValue : 0;
+  const displayClv = hasAnyData ? (overviewData?.kpis?.clv ?? 0) : 0;
+  const displayTargetPct = hasAnyData ? (bamScorecards?.target_scorecard?.percentage ?? 0) : 0;
+  const displayTargetColor = hasAnyData ? (bamScorecards?.target_scorecard?.color || 'slate') : 'slate';
+  const displayInvScore = hasAnyData ? (bamScorecards?.inventory_scorecard?.score ?? 0) : 0;
+  const displayInvLabel = hasAnyData ? (bamScorecards?.inventory_scorecard?.label || "No Data") : "No Data";
+  const displayInvColor = hasAnyData ? (bamScorecards?.inventory_scorecard?.color || 'slate') : 'slate';
+  const displayInvLowStock = hasAnyData ? (bamScorecards?.inventory_scorecard?.low_stock_count || 0) : 0;
+  const displayLiveEvents = hasAnyData ? ((bamLive?.total_transactions !== undefined ? bamLive.total_transactions : totalUnitsSold) || 0) : 0;
+  const displayLiveVelocity = hasAnyData ? (bamLive?.recent_velocity_per_day ?? 0) : 0;
+  const displayRevenueTrend = hasAnyData ? (overviewData?.revenue_trend || []) : [];
+  const displayInventoryData = hasAnyData ? processedInventoryData : [];
+  const displayCategoryDistribution = hasAnyData ? (bamScorecards?.category_distribution || []) : [];
+  const displayLiveStream = hasAnyData ? (bamLive?.live_stream || []) : [];
 
   let runningTotal = 0;
   const cumulativeCashflow = cashflowData?.cashflow?.map((item: any) => {
@@ -1264,15 +1357,14 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-3 relative">
-            {/* Live Ingestion Order Pill */}
+            {/* Store & Register Channels Pill */}
             <button
-              onClick={handleSimulateStream}
-              disabled={isSimulatingStream}
-              className="flex items-center gap-2 px-3.5 py-2 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all hover:shadow-md active:scale-95 cursor-pointer disabled:opacity-50"
-              title="Record live customer order in real time"
+              onClick={() => setActiveTab("integrations")}
+              className="flex items-center gap-2 px-3.5 py-2 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all hover:shadow-md active:scale-95 cursor-pointer"
+              title="Configure store channels and live sales registers"
             >
-              <Zap size={14} className={isSimulatingStream ? "animate-spin text-yellow-300" : "text-yellow-300"} />
-              {isSimulatingStream ? "Recording..." : "Record Live Transaction"}
+              <Plug size={14} className="text-yellow-300" />
+              <span>{activeChannelsCount > 0 ? `${activeChannelsCount} Channel${activeChannelsCount > 1 ? 's' : ''} Connected` : "Connect Store / POS"}</span>
             </button>
 
             {/* Manual Pulse Refresh */}
@@ -1498,7 +1590,7 @@ export default function App() {
             </div>
 
             {/* Quick Start / Store Setup Banner when no data */}
-            {((overviewData?.revenue_trend || []).length === 0 && (processedInventoryData || []).length === 0) && (
+            {(!hasAnyData || (displayRevenueTrend.length === 0 && displayInventoryData.length === 0)) && (
               <div className="mb-8 p-7 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white rounded-3xl shadow-xl shadow-blue-500/15 border border-blue-400/30 flex flex-col md:flex-row items-center justify-between gap-5 animate-in fade-in duration-500">
                 <div className="flex items-center gap-4">
                   <div className="w-14 h-14 rounded-2xl bg-white/20 border border-white/30 text-white flex items-center justify-center shrink-0 shadow-lg backdrop-blur-md">
@@ -1540,8 +1632,8 @@ export default function App() {
                   <DollarSign size={20} className="text-green-600" />
                 </div>
                 <p className="text-gray-500 font-medium mb-1 text-sm">Total Revenue</p>
-                <p className="text-3xl font-extrabold text-gray-900" title={String(overviewData?.kpis?.total_revenue ?? 0)}>
-                  ${formatCompact(overviewData?.kpis?.total_revenue ?? 0)}
+                <p className="text-3xl font-extrabold text-gray-900" title={String(displayTotalRevenue)}>
+                  ${formatCompact(displayTotalRevenue)}
                 </p>
               </div>
               
@@ -1549,15 +1641,15 @@ export default function App() {
                 <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                   <TrendingUp size={48} />
                 </div>
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-4 ${(overviewData?.kpis?.mom_growth ?? 0) >= 0 ? 'bg-emerald-50' : 'bg-red-50'}`}>
-                  <TrendingUp size={20} className={(overviewData?.kpis?.mom_growth ?? 0) >= 0 ? 'text-emerald-600' : 'text-red-600'} />
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-4 ${displayMomGrowth >= 0 ? 'bg-emerald-50' : 'bg-red-50'}`}>
+                  <TrendingUp size={20} className={displayMomGrowth >= 0 ? 'text-emerald-600' : 'text-red-600'} />
                 </div>
                 <p className="text-gray-500 font-medium mb-1 text-sm">MoM Growth</p>
                 <div className="flex flex-wrap items-baseline gap-2">
                   <p className="text-3xl font-extrabold text-gray-900">
-                    {(overviewData?.kpis?.mom_growth ?? 0) >= 0 ? '+' : ''}{overviewData?.kpis?.mom_growth ?? 0}%
+                    {displayMomGrowth >= 0 ? '+' : ''}{displayMomGrowth}%
                   </p>
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${(overviewData?.kpis?.mom_growth ?? 0) >= 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${displayMomGrowth >= 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
                     vs last mo
                   </span>
                 </div>
@@ -1571,8 +1663,8 @@ export default function App() {
                   <Package size={20} className="text-blue-600" />
                 </div>
                 <p className="text-gray-500 font-medium mb-1 text-sm">Total Units</p>
-                <p className="text-3xl font-extrabold text-gray-900" title={String(totalUnitsSold)}>
-                  {formatCompact(totalUnitsSold)}
+                <p className="text-3xl font-extrabold text-gray-900" title={String(displayTotalUnits)}>
+                  {formatCompact(displayTotalUnits)}
                 </p>
               </div>
               
@@ -1584,8 +1676,8 @@ export default function App() {
                   <Sparkles size={20} className="text-purple-600" />
                 </div>
                 <p className="text-gray-500 font-medium mb-1 text-sm">Avg. Order Value</p>
-                <p className="text-3xl font-extrabold text-gray-900" title={String(avgUnitValue)}>
-                  ${formatCompact(avgUnitValue)}
+                <p className="text-3xl font-extrabold text-gray-900" title={String(displayAvgUnitValue)}>
+                  ${formatCompact(displayAvgUnitValue)}
                 </p>
               </div>
               
@@ -1597,8 +1689,8 @@ export default function App() {
                   <Database size={20} className="text-indigo-600" />
                 </div>
                 <p className="text-gray-500 font-medium mb-1 text-sm">Avg. CLV</p>
-                <p className="text-3xl font-extrabold text-gray-900" title={String(overviewData?.kpis?.clv ?? 0)}>
-                  ${formatCompact(overviewData?.kpis?.clv ?? 0)}
+                <p className="text-3xl font-extrabold text-gray-900" title={String(displayClv)}>
+                  ${formatCompact(displayClv)}
                 </p>
               </div>
             </div>
@@ -1610,17 +1702,17 @@ export default function App() {
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-xs font-bold uppercase tracking-wider text-gray-500">Target vs Actual</span>
                   <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
-                    bamScorecards?.target_scorecard?.color === 'emerald' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
-                    bamScorecards?.target_scorecard?.color === 'amber' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
-                    bamScorecards?.target_scorecard?.color === 'rose' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
+                    displayTargetColor === 'emerald' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                    displayTargetColor === 'amber' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                    displayTargetColor === 'rose' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
                     'bg-slate-50 text-slate-600 border border-slate-200'
                   }`}>
-                    {bamScorecards?.target_scorecard?.percentage ?? 0}% of Goal
+                    {displayTargetPct}% of Goal
                   </span>
                 </div>
                 <div className="flex items-baseline justify-between mb-2">
                   <h4 className="text-2xl font-extrabold text-gray-900">
-                    ${formatCompact(overviewData?.kpis?.total_revenue ?? 0)}
+                    ${formatCompact(displayTotalRevenue)}
                   </h4>
                   <span className="text-xs text-gray-400 font-semibold">
                     Target: ${formatCompact(bamScorecards?.target_scorecard?.target || 50000)}
@@ -1629,7 +1721,7 @@ export default function App() {
                 <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
                   <div 
                     className="bg-gradient-to-r from-blue-600 to-indigo-600 h-2.5 rounded-full transition-all duration-1000"
-                    style={{ width: `${Math.min(100, bamScorecards?.target_scorecard?.percentage ?? 0)}%` }}
+                    style={{ width: `${Math.min(100, displayTargetPct)}%` }}
                   ></div>
                 </div>
                 <p className="text-[11px] text-gray-500 mt-2.5 flex items-center gap-1 font-medium">
@@ -1642,31 +1734,31 @@ export default function App() {
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-xs font-bold uppercase tracking-wider text-gray-500">Inventory Health Index</span>
                   <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
-                    bamScorecards?.inventory_scorecard?.color === 'emerald' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
-                    bamScorecards?.inventory_scorecard?.color === 'amber' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
-                    bamScorecards?.inventory_scorecard?.color === 'rose' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
+                    displayInvColor === 'emerald' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                    displayInvColor === 'amber' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                    displayInvColor === 'rose' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
                     'bg-slate-50 text-slate-600 border border-slate-200'
                   }`}>
-                    {bamScorecards?.inventory_scorecard?.label || "No Data"}
+                    {displayInvLabel}
                   </span>
                 </div>
                 <div className="flex items-baseline justify-between mb-2">
                   <h4 className="text-2xl font-extrabold text-gray-900">
-                    {bamScorecards?.inventory_scorecard?.score ?? 0}<span className="text-sm text-gray-400 font-medium">/100</span>
+                    {displayInvScore}<span className="text-sm text-gray-400 font-medium">/100</span>
                   </h4>
                   <span className="text-xs text-gray-400 font-semibold">
-                    {bamScorecards?.inventory_scorecard?.low_stock_count || 0} Low Stock
+                    {displayInvLowStock} Low Stock
                   </span>
                 </div>
                 <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
                   <div 
                     className={`h-2.5 rounded-full transition-all duration-1000 ${
-                      bamScorecards?.inventory_scorecard?.color === 'rose' ? 'bg-rose-500' :
-                      bamScorecards?.inventory_scorecard?.color === 'amber' ? 'bg-amber-500' :
-                      bamScorecards?.inventory_scorecard?.color === 'emerald' ? 'bg-emerald-500' :
+                      displayInvColor === 'rose' ? 'bg-rose-500' :
+                      displayInvColor === 'amber' ? 'bg-amber-500' :
+                      displayInvColor === 'emerald' ? 'bg-emerald-500' :
                       'bg-slate-300'
                     }`}
-                    style={{ width: `${bamScorecards?.inventory_scorecard?.score ?? 0}%` }}
+                    style={{ width: `${displayInvScore}%` }}
                   ></div>
                 </div>
                 <p className="text-[11px] text-gray-500 mt-2.5 flex items-center gap-1 font-medium">
@@ -1684,16 +1776,16 @@ export default function App() {
                 </div>
                 <div className="flex items-baseline justify-between mb-2">
                   <h4 className="text-2xl font-extrabold text-gray-900">
-                    {(bamLive?.total_transactions !== undefined ? bamLive.total_transactions : totalUnitsSold) || 0} <span className="text-sm text-gray-400 font-medium">Events</span>
+                    {displayLiveEvents} <span className="text-sm text-gray-400 font-medium">Events</span>
                   </h4>
                   <span className="text-xs text-gray-400 font-semibold">
-                    ~{bamLive?.recent_velocity_per_day !== undefined && bamLive.recent_velocity_per_day !== null ? bamLive.recent_velocity_per_day : 0}/day velocity
+                    ~{displayLiveVelocity}/day velocity
                   </span>
                 </div>
                 <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
                   <div 
                     className="bg-blue-500 h-2.5 rounded-full transition-all duration-500"
-                    style={{ width: `${(bamLive?.total_transactions || 0) > 0 ? 70 : 0}%` }}
+                    style={{ width: `${displayLiveEvents > 0 ? 70 : 0}%` }}
                   ></div>
                 </div>
                 <p className="text-[11px] text-gray-500 mt-2.5 flex items-center gap-1 font-medium">
@@ -1711,7 +1803,29 @@ export default function App() {
                     <p className="text-sm text-gray-500">Revenue trajectory over time</p>
                   </div>
                 </div>
-                {(overviewData?.revenue_trend || []).length > 0 && Number(overviewData?.kpis?.total_revenue || 0) > 0 ? (
+                {displayRevenueTrend.length > 0 && Number(displayTotalRevenue) > 0 ? (
+                  <div className="flex-1 w-full min-h-0 overflow-x-auto overflow-y-hidden">
+                    <div className="w-full h-full outline-none focus:outline-none select-none">
+                      <ResponsiveContainer width="100%" height="100%" className="outline-none focus:outline-none">
+                        <LineChart data={displayRevenueTrend} margin={{ top: 10, right: 20, left: 0, bottom: 20 }} style={{ outline: 'none' }}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                          <XAxis dataKey="date" stroke="#9ca3af" axisLine={false} tickLine={false} />
+                          <YAxis 
+                            stroke="#9ca3af" 
+                            axisLine={false} 
+                            tickLine={false} 
+                            tickFormatter={(value) => `$${formatCompact(value)}`}
+                          />
+                          <Tooltip 
+                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                            formatter={(value: any) => [`$${value.toLocaleString()}`, 'Revenue']}
+                          />
+                          <Line type="monotone" dataKey="revenue" stroke="#3b82f6" strokeWidth={4} dot={false} activeDot={{ r: 6, fill: '#2563eb' }} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                ) : (
                   <div className="flex-1 w-full min-h-0 overflow-x-auto overflow-y-hidden">
                     <div className="w-full h-full outline-none focus:outline-none select-none">
                       <ResponsiveContainer width="100%" height="100%" className="outline-none focus:outline-none">
@@ -1773,12 +1887,12 @@ export default function App() {
                     <Sliders size={12} /> Clickable
                   </span>
                 </div>
-                {(processedInventoryData || []).length > 0 && processedInventoryData.some((item: any) => Number(item?.sold || 0) > 0) ? (
+                {(displayInventoryData || []).length > 0 && displayInventoryData.some((item: any) => Number(item?.sold || 0) > 0) ? (
                   <div className="flex-1 w-full min-h-0 overflow-x-auto overflow-y-hidden">
                     <div className="w-full h-full outline-none focus:outline-none select-none">
                       <ResponsiveContainer width="100%" height="100%" className="outline-none focus:outline-none">
                         <BarChart 
-                          data={processedInventoryData} 
+                          data={displayInventoryData} 
                           margin={{ top: 10, right: 20, left: 0, bottom: 60 }} 
                           style={{ outline: 'none' }}
                           onClick={(entry: any) => {
@@ -1855,11 +1969,11 @@ export default function App() {
                   </button>
                 </div>
                 <div className="flex-1 w-full min-h-0 flex items-center justify-center">
-                  {(bamScorecards?.category_distribution || []).length > 0 && bamScorecards.category_distribution.some((item: any) => Number(item?.value || 0) > 0) ? (
+                  {(displayCategoryDistribution || []).length > 0 && displayCategoryDistribution.some((item: any) => Number(item?.value || 0) > 0) ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie
-                          data={bamScorecards.category_distribution}
+                          data={displayCategoryDistribution}
                           dataKey="value"
                           nameKey="name"
                           cx="50%"
@@ -1870,7 +1984,7 @@ export default function App() {
                           onClick={(entry) => handleOpenDrilldown(entry?.name)}
                           className="cursor-pointer outline-none focus:outline-none"
                         >
-                          {bamScorecards.category_distribution.map((entry: any, index: number) => (
+                          {displayCategoryDistribution.map((entry: any, index: number) => (
                             <Cell key={`cell-${index}`} fill={entry.color} />
                           ))}
                         </Pie>
@@ -1929,7 +2043,7 @@ export default function App() {
                 </div>
                 
                 <div className="flex-1 overflow-y-auto space-y-3 pr-1">
-                  {(bamLive?.live_stream || []).length === 0 ? (
+                  {displayLiveStream.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-center p-6 border-2 border-dashed border-slate-200/90 rounded-2xl bg-slate-50/60">
                       <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center mb-2 shadow-sm">
                         <Activity size={22} />
@@ -1940,24 +2054,16 @@ export default function App() {
                       </p>
                       <div className="flex items-center gap-2">
                         <button 
-                          onClick={handleSimulateStream}
-                          disabled={isSimulatingStream}
-                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                        >
-                          <Zap size={12} className="text-yellow-300" />
-                          {isSimulatingStream ? "Recording Sale..." : "Record Live Transaction"}
-                        </button>
-                        <button 
                           onClick={() => setActiveTab("integrations")}
-                          className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-1"
+                          className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
                         >
-                          <Plug size={12} />
-                          Connect Feed
+                          <Plug size={12} className="text-yellow-300" />
+                          Connect Sales Channel
                         </button>
                       </div>
                     </div>
                   ) : (
-                    bamLive.live_stream.slice(0, 7).map((item: any) => (
+                    displayLiveStream.slice(0, 7).map((item: any) => (
                       <div 
                         key={item.id} 
                         onClick={() => handleOpenDrilldown(item.category)}
@@ -1998,7 +2104,7 @@ export default function App() {
             
             <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100/50 h-[450px] flex flex-col hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
               <h3 className="text-xl font-bold text-gray-900 mb-6">Cumulative Business Growth</h3>
-              {cumulativeCashflow.length > 0 && cumulativeCashflow.some((item: any) => Number(item.balance) !== 0) ? (
+              {hasAnyData && cumulativeCashflow.length > 0 && cumulativeCashflow.some((item: any) => Number(item.balance) !== 0) ? (
                 <div className="flex-1 w-full min-h-0 overflow-x-auto overflow-y-hidden">
                     <div className="w-full h-full outline-none focus:outline-none select-none">
                       <ResponsiveContainer width="100%" height="100%" className="outline-none focus:outline-none">
@@ -2058,8 +2164,8 @@ export default function App() {
                     <div className="p-2 bg-emerald-100 text-emerald-600 rounded-lg"><DollarSign size={18} /></div>
                     <p className="text-sm text-emerald-800 font-semibold">Operating Cash Flow</p>
                   </div>
-                  <p className="text-2xl font-extrabold text-emerald-900 truncate" title={String(cashflowData.financial_metrics.operating_cash_flow ?? "N/A")}>
-                    {cashflowData.financial_metrics.operating_cash_flow !== null ? "$" + formatCompact(cashflowData.financial_metrics.operating_cash_flow) : "N/A"}
+                  <p className="text-2xl font-extrabold text-emerald-900 truncate" title={String(hasAnyData && cashflowData.financial_metrics.operating_cash_flow !== null ? cashflowData.financial_metrics.operating_cash_flow : 0)}>
+                    {hasAnyData && cashflowData.financial_metrics.operating_cash_flow !== null ? "$" + formatCompact(cashflowData.financial_metrics.operating_cash_flow) : "$0"}
                   </p>
                 </div>
                 <div className="p-6 bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-2xl border border-blue-100 shadow-sm">
@@ -2067,8 +2173,8 @@ export default function App() {
                     <div className="p-2 bg-blue-100 text-blue-600 rounded-lg"><TrendingUp size={18} /></div>
                     <p className="text-sm text-blue-800 font-semibold">Gross Margin</p>
                   </div>
-                  <p className="text-2xl font-extrabold text-blue-900 truncate" title={String(cashflowData.financial_metrics.gross_margin ?? "Requires Cost Data")}>
-                    {cashflowData.financial_metrics.gross_margin !== null ? `${cashflowData.financial_metrics.gross_margin}%` : "Requires Cost Data"}
+                  <p className="text-2xl font-extrabold text-blue-900 truncate" title={String(hasAnyData && cashflowData.financial_metrics.gross_margin !== null ? cashflowData.financial_metrics.gross_margin : "Requires Cost Data")}>
+                    {hasAnyData && cashflowData.financial_metrics.gross_margin !== null ? `${cashflowData.financial_metrics.gross_margin}%` : "Requires Cost Data"}
                   </p>
                 </div>
                 <div className="p-6 bg-gradient-to-br from-purple-50 to-purple-100/50 rounded-2xl border border-purple-100 shadow-sm">
@@ -2076,8 +2182,8 @@ export default function App() {
                     <div className="p-2 bg-purple-100 text-purple-600 rounded-lg"><Sparkles size={18} /></div>
                     <p className="text-sm text-purple-800 font-semibold">Net Margin</p>
                   </div>
-                  <p className="text-2xl font-extrabold text-purple-900 truncate" title={String(cashflowData.financial_metrics.net_margin ?? "Requires Profit Data")}>
-                    {cashflowData.financial_metrics.net_margin !== null ? `${cashflowData.financial_metrics.net_margin}%` : "Requires Profit Data"}
+                  <p className="text-2xl font-extrabold text-purple-900 truncate" title={String(hasAnyData && cashflowData.financial_metrics.net_margin !== null ? cashflowData.financial_metrics.net_margin : "Requires Profit Data")}>
+                    {hasAnyData && cashflowData.financial_metrics.net_margin !== null ? `${cashflowData.financial_metrics.net_margin}%` : "Requires Profit Data"}
                   </p>
                 </div>
                 <div className="p-6 bg-gradient-to-br from-gray-50 to-gray-100/50 rounded-2xl border border-gray-200 shadow-sm">
@@ -2085,8 +2191,8 @@ export default function App() {
                     <div className="p-2 bg-gray-200 text-gray-600 rounded-lg"><AlertTriangle size={18} /></div>
                     <p className="text-sm text-gray-700 font-semibold">Cash Burn Rate</p>
                   </div>
-                  <p className="text-2xl font-extrabold text-gray-900 truncate" title={String(cashflowData.financial_metrics.burn_rate)}>
-                    ${formatCompact(cashflowData.financial_metrics.burn_rate)} <span className="text-base font-medium text-gray-500">/mo</span>
+                  <p className="text-2xl font-extrabold text-gray-900 truncate" title={String(hasAnyData ? cashflowData.financial_metrics.burn_rate : 0)}>
+                    ${formatCompact(hasAnyData ? cashflowData.financial_metrics.burn_rate : 0)} <span className="text-base font-medium text-gray-500">/mo</span>
                   </p>
                 </div>
               </div>
@@ -2103,7 +2209,7 @@ export default function App() {
               </div>
             </div>
             
-            {inventoryMetrics && (
+            {inventoryMetrics && hasAnyData && (
               <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
                 <h3 className="text-xl font-bold text-gray-900 mb-6">Portfolio Health</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -2161,7 +2267,7 @@ export default function App() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {inventoryData.length === 0 ? (
+                    {!hasAnyData || inventoryData.length === 0 ? (
                       <tr>
                         <td colSpan={5} className="py-12 px-4 text-center">
                           <div className="flex flex-col items-center justify-center">
@@ -2248,11 +2354,11 @@ export default function App() {
               <button onClick={() => setInsightFilter("info")} className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-colors ${insightFilter === 'info' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20' : 'bg-white text-slate-600 border border-slate-200 hover:text-slate-900 hover:bg-slate-50 shadow-sm'}`}>Info ({insightCounts.info})</button>
             </div>
             
-            {visibleInsights.length === 0 ? (
+            {!hasAnyData || visibleInsights.length === 0 ? (
               <div className="bg-white border rounded-xl p-12 text-center text-gray-500 shadow-sm">
                 <Bell className="mx-auto mb-4 text-gray-300" size={48} />
                 <h3 className="text-lg font-semibold text-gray-700">No insights found</h3>
-                <p>Try adjusting your search or filters, or upload more data.</p>
+                <p>Upload a transaction dataset or connect your store channels to generate executive AI observations.</p>
                 {(searchQuery || insightFilter !== 'all') && (
                   <button onClick={() => { setSearchQuery(''); setInsightFilter('all'); }} className="mt-4 text-blue-600 hover:underline">Clear filters</button>
                 )}
@@ -2476,6 +2582,26 @@ export default function App() {
                 </div>
               )}
             </div>
+
+            {/* Danger Zone: Reset Workspace */}
+            <div className="bg-white p-8 rounded-3xl shadow-sm border border-rose-100/80 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900">Reset Workspace Data</h3>
+                  <p className="text-sm text-gray-500 mt-1 max-w-xl">
+                    Purge all uploaded files, transactions, and live store logs to start with a fresh, clean slate.
+                  </p>
+                </div>
+                <button
+                  onClick={handleResetWorkspace}
+                  disabled={isResettingWorkspace}
+                  className="px-5 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded-xl text-xs border border-rose-200 transition-all flex items-center justify-center gap-2 shrink-0 cursor-pointer disabled:opacity-50"
+                >
+                  <Trash2 size={14} />
+                  {isResettingWorkspace ? "Purging..." : "Clear All Workspace Data"}
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -2491,14 +2617,16 @@ export default function App() {
                 <p className="text-slate-500 mt-1 font-medium">Connect your spreadsheets, stores, and payment registers with zero technical knowledge.</p>
               </div>
 
-              <button
-                onClick={handleSimulateStream}
-                disabled={isSimulatingStream}
-                className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold rounded-2xl shadow-lg shadow-blue-500/20 hover:shadow-xl transition-all active:scale-95 cursor-pointer disabled:opacity-50 text-sm"
-              >
-                <Zap size={16} className={isSimulatingStream ? "animate-spin text-yellow-300" : "text-yellow-300"} />
-                {isSimulatingStream ? "Recording Sale..." : "Record Live Transaction"}
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => syncBAMPulse(false)}
+                  disabled={isSyncing}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 font-bold rounded-xl text-xs shadow-sm transition-all cursor-pointer disabled:opacity-50"
+                >
+                  <RefreshCw size={13} className={isSyncing ? "animate-spin text-blue-600" : "text-blue-600"} />
+                  {isSyncing ? "Syncing..." : "Refresh Pulse"}
+                </button>
+              </div>
             </div>
 
             {/* Top 2 Zero-Code Cards: Google Sheets & Quick In-Store Sale Entry */}
@@ -2668,9 +2796,15 @@ export default function App() {
                   <h3 className="text-lg font-bold text-gray-900">Connected Sales Channels</h3>
                   <p className="text-xs text-gray-500">Your store and payment systems automatically send orders here</p>
                 </div>
-                <span className="text-xs text-emerald-600 font-bold flex items-center gap-1.5 self-start sm:self-auto">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> 3 Channels Active
-                </span>
+                {activeChannelsCount > 0 ? (
+                  <span className="text-xs text-emerald-600 font-bold flex items-center gap-1.5 self-start sm:self-auto">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> {activeChannelsCount} Channel{activeChannelsCount > 1 ? 's' : ''} Active
+                  </span>
+                ) : (
+                  <span className="text-xs text-slate-500 font-semibold flex items-center gap-1.5 self-start sm:self-auto">
+                    <span className="w-2 h-2 rounded-full bg-slate-400"></span> 0 Channels Connected
+                  </span>
+                )}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -2685,20 +2819,47 @@ export default function App() {
                           <p className="text-[10px] text-gray-500">E-Commerce Storefront</p>
                         </div>
                       </div>
-                      <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded-full">
-                        Connected
+                      <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
+                        connectedIntegrations.shopify.connected 
+                          ? 'bg-emerald-100 text-emerald-800' 
+                          : 'bg-slate-100 text-slate-600'
+                      }`}>
+                        {connectedIntegrations.shopify.connected ? 'Connected' : 'Not Connected'}
                       </span>
                     </div>
                     <p className="text-xs text-gray-600 leading-relaxed mb-4">
-                      Customer checkout orders are automatically captured and reflected on your dashboard every 15 minutes.
+                      {connectedIntegrations.shopify.connected ? (
+                        <span className="font-semibold text-emerald-800">
+                          Store: {connectedIntegrations.shopify.config?.store_domain || "Active Shopify Store"}
+                        </span>
+                      ) : (
+                        "Customer checkout orders and inventory are automatically captured and reflected on your dashboard."
+                      )}
                     </p>
                   </div>
-                  <button
-                    onClick={handleSimulateStream}
-                    className="w-full py-2 bg-emerald-600/10 hover:bg-emerald-600 text-emerald-800 hover:text-white rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5"
-                  >
-                    <Zap size={13} /> Test Shopify Order Sync
-                  </button>
+                  {connectedIntegrations.shopify.connected ? (
+                    <div className="flex flex-col gap-2">
+                      <button
+                        onClick={() => handleSyncIntegrationChannel('shopify')}
+                        className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
+                      >
+                        <RefreshCw size={13} /> Sync Live Orders
+                      </button>
+                      <button
+                        onClick={() => handleDisconnectIntegration('shopify')}
+                        className="w-full py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-xl text-[11px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1"
+                      >
+                        Disconnect Store
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => { setActiveConnectModal('shopify'); setIntegrationError(""); }}
+                      className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
+                    >
+                      <PlusCircle size={13} /> Connect Shopify Store
+                    </button>
+                  )}
                 </div>
 
                 {/* Stripe Payments */}
@@ -2712,20 +2873,47 @@ export default function App() {
                           <p className="text-[10px] text-gray-500">Credit & Debit Payments</p>
                         </div>
                       </div>
-                      <span className="px-2 py-0.5 bg-indigo-100 text-indigo-800 text-[10px] font-bold rounded-full">
-                        Connected
+                      <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
+                        connectedIntegrations.stripe.connected 
+                          ? 'bg-indigo-100 text-indigo-800' 
+                          : 'bg-slate-100 text-slate-600'
+                      }`}>
+                        {connectedIntegrations.stripe.connected ? 'Connected' : 'Not Connected'}
                       </span>
                     </div>
                     <p className="text-xs text-gray-600 leading-relaxed mb-4">
-                      Credit and debit card transactions are synchronized into your daily revenue and net cashflow totals.
+                      {connectedIntegrations.stripe.connected ? (
+                        <span className="font-semibold text-indigo-800">
+                          Webhook: Active Real-time Receiver
+                        </span>
+                      ) : (
+                        "Credit and debit card transactions are synchronized into your daily revenue and net cashflow totals."
+                      )}
                     </p>
                   </div>
-                  <button
-                    onClick={handleSimulateStream}
-                    className="w-full py-2 bg-indigo-600/10 hover:bg-indigo-600 text-indigo-800 hover:text-white rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5"
-                  >
-                    <Zap size={13} /> Test Payment Sync
-                  </button>
+                  {connectedIntegrations.stripe.connected ? (
+                    <div className="flex flex-col gap-2">
+                      <button
+                        onClick={() => handleSyncIntegrationChannel('stripe')}
+                        className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
+                      >
+                        <RefreshCw size={13} /> Sync Payments
+                      </button>
+                      <button
+                        onClick={() => handleDisconnectIntegration('stripe')}
+                        className="w-full py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-xl text-[11px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1"
+                      >
+                        Disconnect Account
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => { setActiveConnectModal('stripe'); setIntegrationError(""); }}
+                      className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
+                    >
+                      <PlusCircle size={13} /> Connect Stripe Account
+                    </button>
+                  )}
                 </div>
 
                 {/* Counter POS Terminal */}
@@ -2739,20 +2927,47 @@ export default function App() {
                           <p className="text-[10px] text-gray-500">Walk-in POS Hardware</p>
                         </div>
                       </div>
-                      <span className="px-2 py-0.5 bg-blue-100 text-blue-800 text-[10px] font-bold rounded-full">
-                        Listening
+                      <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
+                        connectedIntegrations.square.connected 
+                          ? 'bg-blue-100 text-blue-800' 
+                          : 'bg-slate-100 text-slate-600'
+                      }`}>
+                        {connectedIntegrations.square.connected ? 'Connected' : 'Not Connected'}
                       </span>
                     </div>
                     <p className="text-xs text-gray-600 leading-relaxed mb-4">
-                      Walk-in counter register receipts automatically record to update inventory remaining in real-time.
+                      {connectedIntegrations.square.connected ? (
+                        <span className="font-semibold text-blue-800">
+                          Terminal: {connectedIntegrations.square.config?.location_id || "Active Counter POS"}
+                        </span>
+                      ) : (
+                        "Walk-in counter register receipts automatically record to update inventory remaining in real-time."
+                      )}
                     </p>
                   </div>
-                  <button
-                    onClick={handleSimulateStream}
-                    className="w-full py-2 bg-blue-600/10 hover:bg-blue-600 text-blue-800 hover:text-white rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5"
-                  >
-                    <Zap size={13} /> Test Counter Receipt Sync
-                  </button>
+                  {connectedIntegrations.square.connected ? (
+                    <div className="flex flex-col gap-2">
+                      <button
+                        onClick={() => handleSyncIntegrationChannel('square')}
+                        className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
+                      >
+                        <RefreshCw size={13} /> Sync POS Receipts
+                      </button>
+                      <button
+                        onClick={() => handleDisconnectIntegration('square')}
+                        className="w-full py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-xl text-[11px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1"
+                      >
+                        Disconnect Terminal
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => { setActiveConnectModal('square'); setIntegrationError(""); }}
+                      className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
+                    >
+                      <PlusCircle size={13} /> Connect Square POS
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -2772,25 +2987,190 @@ export default function App() {
                 <span className="text-xs text-gray-400 font-medium">Auto-updated</span>
               </div>
 
-              <div className="divide-y divide-gray-100">
-                {(bamLive?.live_stream || []).slice(0, 5).map((item: any) => (
-                  <div key={item.id} className="py-3.5 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center text-sm font-bold">
-                        {item.source.includes("Shopify") ? "🛍️" : item.source.includes("Stripe") ? "💳" : item.source.includes("POS") ? "🛒" : "📊"}
-                      </div>
-                      <div>
-                        <p className="text-xs font-extrabold text-gray-900">{item.source}: {item.category}</p>
-                        <p className="text-[11px] text-gray-500">SKU: {item.product_sku} • Customer: {item.customer_id}</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs font-extrabold text-emerald-700">+${item.amount.toLocaleString()}</p>
-                      <span className="text-[10px] text-gray-400 font-medium">{item.date}</span>
-                    </div>
+              {displayLiveStream.length === 0 ? (
+                <div className="py-12 flex flex-col items-center justify-center text-center">
+                  <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mb-3">
+                    <Clock size={22} />
                   </div>
-                ))}
+                  <p className="text-sm font-bold text-slate-700">No Inbound Sync Events Yet</p>
+                  <p className="text-xs text-slate-400 max-w-sm mt-1">
+                    Connect your Shopify storefront, Stripe payments, or Square counter register to stream live sales into your dashboard.
+                  </p>
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-100">
+                  {displayLiveStream.slice(0, 5).map((item: any) => (
+                    <div key={item.id} className="py-3.5 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center text-sm font-bold">
+                          {item.source.includes("Shopify") ? "🛍️" : item.source.includes("Stripe") ? "💳" : item.source.includes("POS") ? "🛒" : "📊"}
+                        </div>
+                        <div>
+                          <p className="text-xs font-extrabold text-gray-900">{item.source}: {item.category}</p>
+                          <p className="text-[11px] text-gray-500">SKU: {item.product_sku} • Customer: {item.customer_id}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs font-extrabold text-emerald-700">+${item.amount.toLocaleString()}</p>
+                        <span className="text-[10px] text-gray-400 font-medium">{item.date}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Modal for Connecting Shopify / Stripe / Square */}
+        {activeConnectModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+              <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-slate-50 to-blue-50/50">
+                <div className="flex items-center gap-3">
+                  <div className={`p-2.5 rounded-2xl shadow-md ${
+                    activeConnectModal === 'shopify' ? 'bg-emerald-600 text-white' :
+                    activeConnectModal === 'stripe' ? 'bg-indigo-600 text-white' :
+                    'bg-blue-600 text-white'
+                  }`}>
+                    {activeConnectModal === 'shopify' ? '🛍️' : activeConnectModal === 'stripe' ? '💳' : '📟'}
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900">
+                      Connect {activeConnectModal === 'shopify' ? 'Shopify Store' : activeConnectModal === 'stripe' ? 'Stripe Payments' : 'Square POS'}
+                    </h3>
+                    <p className="text-xs text-gray-500">Configure your channel credentials to enable real-time order syncing.</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => { setActiveConnectModal(null); setIntegrationError(""); }}
+                  className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer"
+                >
+                  <X size={18} />
+                </button>
               </div>
+
+              <form onSubmit={handleConnectIntegration} className="p-6 flex flex-col gap-4">
+                {activeConnectModal === 'shopify' && (
+                  <>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">Shopify Store Domain</label>
+                      <input
+                        type="text"
+                        placeholder="your-store-name.myshopify.com"
+                        value={connectDomain}
+                        onChange={(e) => setConnectDomain(e.target.value)}
+                        required
+                        className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 outline-none focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">Admin API Access Token</label>
+                      <input
+                        type="password"
+                        placeholder="Enter your Shopify Admin API Token"
+                        value={connectApiKey}
+                        onChange={(e) => setConnectApiKey(e.target.value)}
+                        required
+                        className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-mono text-gray-900 outline-none focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
+                      />
+                      <p className="text-[10px] text-gray-400 mt-1">Generated from your Shopify Partner or Admin Apps dashboard.</p>
+                    </div>
+                  </>
+                )}
+
+                {activeConnectModal === 'stripe' && (
+                  <>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">Stripe Publishable Key</label>
+                      <input
+                        type="text"
+                        placeholder="Enter your Stripe Publishable Key"
+                        value={connectApiKey}
+                        onChange={(e) => setConnectApiKey(e.target.value)}
+                        required
+                        className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-mono text-gray-900 outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">Stripe Secret or Restricted Key</label>
+                      <input
+                        type="password"
+                        placeholder="Enter your Stripe Secret / Restricted API Key"
+                        value={connectSecretKey}
+                        onChange={(e) => setConnectSecretKey(e.target.value)}
+                        required
+                        className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-mono text-gray-900 outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                      />
+                      <p className="text-[10px] text-gray-400 mt-1">Used to verify incoming webhook signatures and synchronize sales.</p>
+                    </div>
+                  </>
+                )}
+
+                {activeConnectModal === 'square' && (
+                  <>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">Square Application ID / Token</label>
+                      <input
+                        type="text"
+                        placeholder="Enter Square Application ID"
+                        value={connectApiKey}
+                        onChange={(e) => setConnectApiKey(e.target.value)}
+                        required
+                        className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-mono text-gray-900 outline-none focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">POS Location Name or Register ID</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Counter Register 1 / Main Street Location"
+                        value={connectDomain}
+                        onChange={(e) => setConnectDomain(e.target.value)}
+                        required
+                        className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium text-gray-900 outline-none focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
+                      />
+                    </div>
+                  </>
+                )}
+
+                {integrationError && (
+                  <div className="p-3 bg-red-50 text-red-700 border border-red-200 rounded-xl text-xs font-medium">
+                    {integrationError}
+                  </div>
+                )}
+
+                <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">
+                  <button
+                    type="button"
+                    onClick={() => { setActiveConnectModal(null); setIntegrationError(""); }}
+                    className="px-4 py-2.5 text-xs font-bold text-gray-600 hover:bg-gray-100 rounded-xl transition-all cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isConnectingIntegration}
+                    className={`px-5 py-2.5 rounded-xl text-xs font-bold text-white shadow-md transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50 ${
+                      activeConnectModal === 'shopify' ? 'bg-emerald-600 hover:bg-emerald-700' :
+                      activeConnectModal === 'stripe' ? 'bg-indigo-600 hover:bg-indigo-700' :
+                      'bg-blue-600 hover:bg-blue-700'
+                    }`}
+                  >
+                    {isConnectingIntegration ? (
+                      <>
+                        <RefreshCw size={13} className="animate-spin" />
+                        Connecting...
+                      </>
+                    ) : (
+                      <>
+                        <PlusCircle size={13} />
+                        Save & Connect {activeConnectModal === 'shopify' ? 'Shopify' : activeConnectModal === 'stripe' ? 'Stripe' : 'Square'}
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}

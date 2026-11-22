@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
-from models.database import get_db, Transaction
+from models.database import get_db, Transaction, FileRecord, IntegrationSetting
 from api.auth import get_current_user_id
 
 router = APIRouter()
@@ -10,6 +10,24 @@ router = APIRouter()
 @router.get("/api/inventory")
 def get_inventory(db: Session = Depends(get_db), user_id: int = Depends(get_current_user_id)):
     try:
+        # Check if user has any uploaded files or active connected channels
+        file_count = db.query(FileRecord).filter(FileRecord.user_id == user_id).count()
+        connected_count = db.query(IntegrationSetting).filter(
+            IntegrationSetting.user_id == user_id,
+            IntegrationSetting.is_connected == 1
+        ).count()
+
+        if file_count == 0 and connected_count == 0:
+            return {
+                "inventory": [],
+                "metrics": {
+                    "total_products": 0,
+                    "total_value": 0.0,
+                    "low_stock_count": 0,
+                    "out_of_stock_count": 0
+                }
+            }
+
         sales_by_category = db.query(
             Transaction.category,
             func.count(Transaction.category).label('sold_count'),

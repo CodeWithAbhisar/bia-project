@@ -1,9 +1,31 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 import pandas as pd
-from models.database import Transaction
+from models.database import Transaction, FileRecord, IntegrationSetting
 
 def get_overview_data(db: Session, user_id: int):
+    # Check if user has uploaded files or active connected store channels
+    file_count = db.query(FileRecord).filter(FileRecord.user_id == user_id).count()
+    connected_count = db.query(IntegrationSetting).filter(
+        IntegrationSetting.user_id == user_id,
+        IntegrationSetting.is_connected == 1
+    ).count()
+
+    # If the user has not uploaded any dataset and has no active integrations,
+    # purge unlinked test artifacts and return clean authentic empty state.
+    if file_count == 0 and connected_count == 0:
+        db.query(Transaction).filter(Transaction.user_id == user_id, Transaction.file_id == None).delete()
+        db.commit()
+        return {
+            "kpis": {
+                "total_revenue": 0.0,
+                "clv": 0.0,
+                "mom_growth": 0.0,
+                "top_region": None
+            },
+            "revenue_trend": []
+        }
+
     daily_sales = db.query(
         Transaction.date, 
         func.sum(Transaction.amount).label('daily_revenue')
@@ -67,6 +89,25 @@ def get_overview_data(db: Session, user_id: int):
     }
 
 def get_cashflow_data(db: Session, user_id: int):
+    # Check if user has uploaded files or active connected store channels
+    file_count = db.query(FileRecord).filter(FileRecord.user_id == user_id).count()
+    connected_count = db.query(IntegrationSetting).filter(
+        IntegrationSetting.user_id == user_id,
+        IntegrationSetting.is_connected == 1
+    ).count()
+
+    if file_count == 0 and connected_count == 0:
+        return {
+            "operating_cash_flow": 0.0,
+            "burn_rate": 0.0,
+            "break_even": 0.0,
+            "gross_margin": None,
+            "net_margin": None,
+            "expense_ratio": None,
+            "roi": None,
+            "cashflow_trend": []
+        }
+
     daily_sales = db.query(
         Transaction.date, 
         func.sum(Transaction.amount).label('daily_revenue')

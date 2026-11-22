@@ -82,6 +82,15 @@ class AlertNotification(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     is_read = Column(Integer, default=0) # 0 = unread, 1 = read
 
+class IntegrationSetting(Base):
+    __tablename__ = "integration_settings"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, index=True)
+    platform = Column(String, index=True) # "shopify", "stripe", "square"
+    is_connected = Column(Integer, default=0) # 0 = disconnected, 1 = connected
+    config = Column(JSON, nullable=True) # {"store_domain": "...", "api_key": "...", ...}
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
 Base.metadata.create_all(bind=engine)
 
 def get_db():
