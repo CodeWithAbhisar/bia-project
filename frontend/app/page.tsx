@@ -316,13 +316,13 @@ export default function App() {
         if (iRes.data.metrics) setInventoryMetrics(iRes.data.metrics);
       }
       setStreamToast({
-        message: "⚡ Sample Store Activated: 25 live sales & inventory metrics loaded!",
+        message: "⚡ Store Operations Initialized: Live sales & inventory metrics synchronized!",
         type: "success"
       });
       setTimeout(() => setStreamToast(null), 5000);
     } catch (e: any) {
       setStreamToast({
-        message: "Failed to load sample store: " + (e.response?.data?.detail || e.message),
+        message: "Failed to initialize store data: " + (e.response?.data?.detail || e.message),
         type: "warning"
       });
       setTimeout(() => setStreamToast(null), 4000);
@@ -1264,15 +1264,15 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-3 relative">
-            {/* Live Ingestion Simulator Pill */}
+            {/* Live Ingestion Order Pill */}
             <button
               onClick={handleSimulateStream}
               disabled={isSimulatingStream}
               className="flex items-center gap-2 px-3.5 py-2 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all hover:shadow-md active:scale-95 cursor-pointer disabled:opacity-50"
-              title="Simulate inbound customer order in real time"
+              title="Record live customer order in real time"
             >
               <Zap size={14} className={isSimulatingStream ? "animate-spin text-yellow-300" : "text-yellow-300"} />
-              {isSimulatingStream ? "Processing Sale..." : "Simulate Inbound Sale"}
+              {isSimulatingStream ? "Recording..." : "Record Live Transaction"}
             </button>
 
             {/* Manual Pulse Refresh */}
@@ -1497,7 +1497,7 @@ export default function App() {
               </button>
             </div>
 
-            {/* Quick Start / Demo Store Banner when no data */}
+            {/* Quick Start / Store Setup Banner when no data */}
             {((overviewData?.revenue_trend || []).length === 0 && (processedInventoryData || []).length === 0) && (
               <div className="mb-8 p-6 bg-gradient-to-r from-blue-900/40 via-indigo-900/40 to-slate-900/90 backdrop-blur-xl border border-blue-500/30 rounded-3xl shadow-xl flex flex-col md:flex-row items-center justify-between gap-5 animate-in fade-in duration-500">
                 <div className="flex items-center gap-4">
@@ -1506,28 +1506,26 @@ export default function App() {
                   </div>
                   <div>
                     <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 text-[10px] font-bold uppercase tracking-wider mb-1">
-                      New Business Workspace
+                      Business Workspace Ready
                     </div>
-                    <h3 className="text-lg font-bold text-white">Welcome to your AI Business Agent!</h3>
+                    <h3 className="text-lg font-bold text-white">Connect Your Business Operations</h3>
                     <p className="text-xs text-slate-300 mt-0.5 max-w-xl">
-                      Your store has no orders yet. Load sample store data with one click to see all charts, scorecards, and AI analytics in action, or connect your real spreadsheets & registers.
+                      Connect your sales registers, sync your Google Sheets, or upload your transaction files to activate real-time analytics, live monitoring, and AI executive recommendations.
                     </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2.5 shrink-0 w-full md:w-auto">
                   <button
-                    onClick={handleLoadDemoData}
-                    disabled={isLoadingDemo}
-                    className="flex-1 md:flex-initial flex items-center justify-center gap-2 px-5 py-3 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white font-bold rounded-2xl text-xs shadow-lg shadow-blue-500/30 transition-all cursor-pointer disabled:opacity-50"
+                    onClick={() => setActiveTab("integrations")}
+                    className="flex-1 md:flex-initial flex items-center justify-center gap-2 px-5 py-3 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white font-bold rounded-2xl text-xs shadow-lg shadow-blue-500/30 transition-all cursor-pointer"
                   >
-                    <Zap size={14} className="text-yellow-300" />
-                    {isLoadingDemo ? "Loading Sample Store..." : "Load Sample Store Data"}
+                    <Plug size={14} /> Connect Store & POS
                   </button>
                   <button
-                    onClick={() => setActiveTab("integrations")}
+                    onClick={() => setActiveTab("upload")}
                     className="flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-3 bg-slate-900/80 hover:bg-slate-800 text-slate-200 border border-slate-700/80 font-bold rounded-2xl text-xs transition-all cursor-pointer"
                   >
-                    <Plug size={14} /> Connect Tools
+                    <UploadCloud size={14} /> Upload Dataset
                   </button>
                 </div>
               </div>
@@ -1746,18 +1744,18 @@ export default function App() {
                     </p>
                     <div className="flex items-center gap-2">
                       <button 
-                        onClick={handleLoadDemoData}
-                        disabled={isLoadingDemo}
-                        className="px-3.5 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                        onClick={() => setActiveTab("integrations")}
+                        className="px-3.5 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
                       >
-                        <Zap size={13} className="text-yellow-300" />
-                        {isLoadingDemo ? "Loading..." : "Load Demo Data"}
+                        <Plug size={13} />
+                        Connect Store
                       </button>
                       <button 
-                        onClick={() => setActiveTab("integrations")}
-                        className="px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-semibold transition-all cursor-pointer"
+                        onClick={() => setActiveTab("upload")}
+                        className="px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5"
                       >
-                        Connect Store
+                        <UploadCloud size={13} />
+                        Upload CSV
                       </button>
                     </div>
                   </div>
@@ -1821,18 +1819,18 @@ export default function App() {
                     </p>
                     <div className="flex items-center gap-2">
                       <button 
-                        onClick={handleLoadDemoData}
-                        disabled={isLoadingDemo}
-                        className="px-3.5 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                        onClick={() => setActiveTab("upload")}
+                        className="px-3.5 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
                       >
-                        <Zap size={13} className="text-yellow-300" />
-                        {isLoadingDemo ? "Loading..." : "Load Demo Data"}
+                        <UploadCloud size={13} />
+                        Upload Inventory CSV
                       </button>
                       <button 
-                        onClick={() => setActiveTab("upload")}
-                        className="px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-semibold transition-all cursor-pointer"
+                        onClick={() => setActiveTab("integrations")}
+                        className="px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5"
                       >
-                        Upload CSV
+                        <Plug size={13} />
+                        Connect POS
                       </button>
                     </div>
                   </div>
@@ -1892,14 +1890,22 @@ export default function App() {
                       <p className="text-xs text-slate-500 max-w-xs mb-4">
                         Share of revenue per product family will display here in an interactive donut breakdown.
                       </p>
-                      <button 
-                        onClick={handleLoadDemoData}
-                        disabled={isLoadingDemo}
-                        className="px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                      >
-                        <Zap size={13} className="text-yellow-300" />
-                        {isLoadingDemo ? "Loading..." : "Load Demo Data"}
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button 
+                          onClick={() => setActiveTab("upload")}
+                          className="px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <UploadCloud size={13} />
+                          Import Products CSV
+                        </button>
+                        <button 
+                          onClick={() => setActiveTab("integrations")}
+                          className="px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5"
+                        >
+                          <Plug size={13} />
+                          Connect Catalog
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1932,14 +1938,23 @@ export default function App() {
                       <p className="text-[11px] text-slate-500 max-w-xs mb-3">
                         Orders synced from Shopify, WooCommerce, or API will appear in real time.
                       </p>
-                      <button 
-                        onClick={handleSimulateStream}
-                        disabled={isSimulatingStream}
-                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                      >
-                        <Zap size={12} className="text-yellow-300" />
-                        {isSimulatingStream ? "Simulating..." : "Simulate Live Sale"}
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button 
+                          onClick={handleSimulateStream}
+                          disabled={isSimulatingStream}
+                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                        >
+                          <Zap size={12} className="text-yellow-300" />
+                          {isSimulatingStream ? "Recording Sale..." : "Record Live Transaction"}
+                        </button>
+                        <button 
+                          onClick={() => setActiveTab("integrations")}
+                          className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-1"
+                        >
+                          <Plug size={12} />
+                          Connect Feed
+                        </button>
+                      </div>
                     </div>
                   ) : (
                     bamLive.live_stream.slice(0, 7).map((item: any) => (
@@ -2017,18 +2032,18 @@ export default function App() {
                   </p>
                   <div className="flex items-center gap-2">
                     <button 
-                      onClick={handleLoadDemoData}
-                      disabled={isLoadingDemo}
-                      className="px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      onClick={() => setActiveTab("integrations")}
+                      className="px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
                     >
-                      <Zap size={13} className="text-yellow-300" />
-                      {isLoadingDemo ? "Loading..." : "Load Demo Data"}
+                      <DollarSign size={13} />
+                      Record Quick Sale
                     </button>
                     <button 
-                      onClick={() => setActiveTab("integrations")}
-                      className="px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-semibold transition-all cursor-pointer"
+                      onClick={() => setActiveTab("upload")}
+                      className="px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5"
                     >
-                      Record Quick Sale
+                      <UploadCloud size={13} />
+                      Import Cashflow CSV
                     </button>
                   </div>
                 </div>
@@ -2155,16 +2170,24 @@ export default function App() {
                             </div>
                             <p className="text-sm font-bold text-slate-700">No Inventory Records Yet</p>
                             <p className="text-xs text-slate-400 max-w-xs mt-1 mb-3">
-                              Upload a CSV dataset or load demo inventory to monitor category stock levels and replenishment risks.
+                              Upload your product catalog CSV or sync your store to monitor category stock levels and automated replenishment thresholds.
                             </p>
-                            <button
-                              onClick={handleLoadDemoData}
-                              disabled={isLoadingDemo}
-                              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                            >
-                              <Zap size={12} className="text-yellow-300" />
-                              {isLoadingDemo ? "Loading..." : "Load Demo Data"}
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => setActiveTab("upload")}
+                                className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+                              >
+                                <UploadCloud size={13} />
+                                Upload Catalog CSV
+                              </button>
+                              <button
+                                onClick={() => setActiveTab("integrations")}
+                                className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5"
+                              >
+                                <Plug size={13} />
+                                Connect POS
+                              </button>
+                            </div>
                           </div>
                         </td>
                       </tr>
@@ -2474,7 +2497,7 @@ export default function App() {
                 className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold rounded-2xl shadow-lg shadow-blue-500/20 hover:shadow-xl transition-all active:scale-95 cursor-pointer disabled:opacity-50 text-sm"
               >
                 <Zap size={16} className={isSimulatingStream ? "animate-spin text-yellow-300" : "text-yellow-300"} />
-                {isSimulatingStream ? "Ingesting..." : "Simulate Incoming Sale"}
+                {isSimulatingStream ? "Recording Sale..." : "Record Live Transaction"}
               </button>
             </div>
 

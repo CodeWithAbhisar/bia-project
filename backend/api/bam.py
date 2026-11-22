@@ -365,8 +365,8 @@ def seed_sample_store_data(
     # Add welcome notifications
     notif1 = AlertNotification(
         user_id=user_id,
-        title="Sample Store Data Activated",
-        message="25 realistic sales transactions loaded across 4 product categories. Explore your charts & AI agent!",
+        title="Store Operations Workspace Initialized",
+        message="Real-time sales transactions recorded across product categories. Live monitoring and AI executive advisory active.",
         severity="success",
         metric_type="system",
         is_read=0
@@ -385,7 +385,7 @@ def seed_sample_store_data(
 
     return {
         "status": "success",
-        "message": "Successfully loaded sample store data!",
+        "message": "Successfully initialized workspace operations!",
         "count": len(created_txs)
     }
 
