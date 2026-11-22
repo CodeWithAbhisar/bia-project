@@ -1,6 +1,7 @@
-from sqlalchemy import create_engine, Column, Integer, String, Float, JSON, DateTime
+from sqlalchemy import create_engine, Column, Integer, String, Float, JSON, DateTime, func
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+from datetime import datetime, timezone
 import os
 
 # Reads DATABASE_URL from environment variable.
@@ -69,6 +70,17 @@ class EmailOTP(Base):
     email = Column(String, index=True)
     otp = Column(String)
     expires_at = Column(DateTime)
+
+class AlertNotification(Base):
+    __tablename__ = "alert_notifications"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, index=True)
+    title = Column(String)
+    message = Column(String)
+    severity = Column(String, default="info") # "critical", "warning", "success", "info"
+    metric_type = Column(String, nullable=True) # "inventory", "revenue", "integration", "target"
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    is_read = Column(Integer, default=0) # 0 = unread, 1 = read
 
 Base.metadata.create_all(bind=engine)
 

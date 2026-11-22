@@ -17,6 +17,7 @@ from api.auth import router as auth_router, get_current_user_id
 from api.chat import router as chat_router
 from api.inventory import router as inventory_router
 from api.insights import router as insights_router
+from api.bam import router as bam_router
 
 app = FastAPI()
 
@@ -140,3 +141,4 @@ app.include_router(chat_router)
 app.include_router(inventory_router)
 app.include_router(insights_router)
 app.include_router(auth_router)
+app.include_router(bam_router)

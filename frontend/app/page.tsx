@@ -4,8 +4,8 @@ import { useState, useEffect, useRef, useMemo } from "react";
 // Central API base URL — empty string routes through Next.js /api rewrite proxy (zero CORS issues)
 const API_BASE = "";
 import axios from "axios";
-import { LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { UploadCloud, LayoutDashboard, DollarSign, Package, MessageSquare, Bell, Send, CheckCircle, AlertTriangle, Info, LogOut, Search, X, Copy, Check, Sparkles, TrendingUp, Database, FileText, User, Trash2, Menu, Mail } from "lucide-react";
+import { LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
+import { UploadCloud, LayoutDashboard, DollarSign, Package, MessageSquare, Bell, Send, CheckCircle, AlertTriangle, Info, LogOut, Search, X, Copy, Check, Sparkles, TrendingUp, Database, FileText, User, Trash2, Menu, Mail, Activity, RefreshCw, Plug, Layers, Zap, ShieldAlert, ArrowUpRight, ArrowDownRight, Eye, ChevronRight, Sliders, CheckCircle2, AlertCircle } from "lucide-react";
 
 export default function App() {
   const [token, setToken] = useState<string | null>(() => {
@@ -45,6 +45,27 @@ export default function App() {
   const [inventorySearch, setInventorySearch] = useState("");
   const [insightsData, setInsightsData] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+
+  // BAM (Business Activity Monitoring) States
+  const [bamLive, setBamLive] = useState<any>(null);
+  const [bamAlerts, setBamAlerts] = useState<any[]>([]);
+  const [unreadAlertCount, setUnreadAlertCount] = useState(0);
+  const [isAlertsOpen, setIsAlertsOpen] = useState(false);
+  const [bamScorecards, setBamScorecards] = useState<any>(null);
+  const [autoSyncEnabled, setAutoSyncEnabled] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [lastSyncTime, setLastSyncTime] = useState<string>("Just now");
+
+  // BAM Drill-Down Modal State
+  const [isDrilldownOpen, setIsDrilldownOpen] = useState(false);
+  const [drilldownCategory, setDrilldownCategory] = useState<string>("all");
+  const [drilldownData, setDrilldownData] = useState<any>(null);
+  const [isDrilldownLoading, setIsDrilldownLoading] = useState(false);
+
+  // BAM Ingestion & Simulation State
+  const [isSimulatingStream, setIsSimulatingStream] = useState(false);
+  const [streamToast, setStreamToast] = useState<{ message: string; type: "success" | "info" | "warning" } | null>(null);
+  const [copiedWebhook, setCopiedWebhook] = useState(false);
 
   // Insights tab state
   const [insightFilter, setInsightFilter] = useState("all");
@@ -139,11 +160,14 @@ export default function App() {
     try {
       const config = { headers: { Authorization: `Bearer ${token}` } };
       
-      const [overviewRes, cashflowRes, invRes, insightsRes] = await Promise.all([
+      const [overviewRes, cashflowRes, invRes, insightsRes, bamLiveRes, bamAlertsRes, bamScorecardsRes] = await Promise.all([
         axios.get(API_BASE + "/api/analytics/overview", config),
         axios.get(API_BASE + "/api/analytics/cashflow", config),
         axios.get(API_BASE + "/api/inventory", config),
-        axios.get(API_BASE + "/api/insights", config)
+        axios.get(API_BASE + "/api/insights", config),
+        axios.get(API_BASE + "/api/bam/live", config).catch(() => ({ data: null })),
+        axios.get(API_BASE + "/api/bam/alerts", config).catch(() => ({ data: { alerts: [], unread_count: 0 } })),
+        axios.get(API_BASE + "/api/bam/scorecards", config).catch(() => ({ data: null }))
       ]);
 
       setOverviewData(overviewRes.data);
@@ -151,12 +175,108 @@ export default function App() {
       setInventoryData(invRes.data.inventory || []);
       setInventoryMetrics(invRes.data.metrics || null);
       setInsightsData(insightsRes.data.insights || []);
+      if (bamLiveRes?.data) setBamLive(bamLiveRes.data);
+      if (bamAlertsRes?.data) {
+        setBamAlerts(bamAlertsRes.data.alerts || []);
+        setUnreadAlertCount(bamAlertsRes.data.unread_count || 0);
+      }
+      if (bamScorecardsRes?.data) setBamScorecards(bamScorecardsRes.data);
+      setLastSyncTime(new Date().toLocaleTimeString());
     } catch (e: any) {
       console.log("No data found or unauthorized.");
       if (e.response && (e.response.status === 401 || e.response.status === 404)) {
         localStorage.removeItem("token");
         setToken(null);
       }
+    }
+  };
+
+  const syncBAMPulse = async (silent = true) => {
+    if (!token) return;
+    if (!silent) setIsSyncing(true);
+    try {
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      const [liveRes, alertsRes, scorecardsRes, overviewRes] = await Promise.all([
+        axios.get(API_BASE + "/api/bam/live", config).catch(() => null),
+        axios.get(API_BASE + "/api/bam/alerts", config).catch(() => null),
+        axios.get(API_BASE + "/api/bam/scorecards", config).catch(() => null),
+        axios.get(API_BASE + "/api/analytics/overview", config).catch(() => null),
+      ]);
+      if (liveRes?.data) setBamLive(liveRes.data);
+      if (alertsRes?.data) {
+        setBamAlerts(alertsRes.data.alerts || []);
+        setUnreadAlertCount(alertsRes.data.unread_count || 0);
+      }
+      if (scorecardsRes?.data) setBamScorecards(scorecardsRes.data);
+      if (overviewRes?.data) setOverviewData(overviewRes.data);
+      setLastSyncTime(new Date().toLocaleTimeString());
+    } catch {
+      // silent
+    } finally {
+      if (!silent) setIsSyncing(false);
+    }
+  };
+
+  // Feature 1: Real-Time Polling & Heartbeat (every 12 seconds)
+  useEffect(() => {
+    if (!token || !autoSyncEnabled) return;
+    const interval = setInterval(() => {
+      syncBAMPulse(true);
+    }, 12000);
+    return () => clearInterval(interval);
+  }, [token, autoSyncEnabled]);
+
+  // Feature 4: Drill-Down Analysis Trigger
+  const handleOpenDrilldown = async (category = "all", date?: string) => {
+    setIsDrilldownOpen(true);
+    setIsDrilldownLoading(true);
+    setDrilldownCategory(category);
+    try {
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      const params = new URLSearchParams();
+      if (category && category !== "all") params.append("category", category);
+      if (date) params.append("date", date);
+      const res = await axios.get(`${API_BASE}/api/bam/drilldown?${params.toString()}`, config);
+      setDrilldownData(res.data);
+    } catch (e) {
+      console.error("Drilldown query error:", e);
+    } finally {
+      setIsDrilldownLoading(false);
+    }
+  };
+
+  // Feature 3: Live Inbound ERP/CRM Stream Simulator
+  const handleSimulateStream = async () => {
+    setIsSimulatingStream(true);
+    try {
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      const res = await axios.post(`${API_BASE}/api/bam/simulate-stream`, {}, config);
+      setStreamToast({
+        message: `⚡ Live Ingest: Processed $${res.data.transaction.amount.toFixed(2)} in ${res.data.transaction.category} from ${res.data.transaction.source}`,
+        type: "success"
+      });
+      setTimeout(() => setStreamToast(null), 5000);
+      await syncBAMPulse(false);
+    } catch {
+      setStreamToast({
+        message: "Simulation failed. Please verify network.",
+        type: "warning"
+      });
+      setTimeout(() => setStreamToast(null), 4000);
+    } finally {
+      setIsSimulatingStream(false);
+    }
+  };
+
+  // Feature 2: Mark All Alerts Read
+  const handleMarkAllAlertsRead = async () => {
+    try {
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      await axios.post(`${API_BASE}/api/bam/alerts/read-all`, {}, config);
+      setUnreadAlertCount(0);
+      setBamAlerts(prev => prev.map(a => ({ ...a, is_read: 1 })));
+    } catch {
+      // silent
     }
   };
 
@@ -712,6 +832,7 @@ export default function App() {
           <button onClick={() => { setActiveTab("chat"); setIsMobileMenuOpen(false); }} className={`flex items-center gap-3 hover:text-blue-400 ${activeTab === 'chat' ? 'text-blue-400' : ''}`}><MessageSquare size={20}/> AI Chat</button>
           <button onClick={() => { setActiveTab("inventory"); setIsMobileMenuOpen(false); }} className={`flex items-center gap-3 hover:text-blue-400 ${activeTab === 'inventory' ? 'text-blue-400' : ''}`}><Package size={20}/> Inventory</button>
           <button onClick={() => { setActiveTab("insights"); setIsMobileMenuOpen(false); }} className={`flex items-center gap-3 hover:text-blue-400 ${activeTab === 'insights' ? 'text-blue-400' : ''}`}><Bell size={20}/> Insights</button>
+          <button onClick={() => { setActiveTab("integrations"); setIsMobileMenuOpen(false); }} className={`flex items-center gap-3 hover:text-blue-400 ${activeTab === 'integrations' ? 'text-blue-400' : ''}`}><Plug size={20}/> Integrations</button>
           <button onClick={() => { setActiveTab("profile"); setIsMobileMenuOpen(false); }} className={`flex items-center gap-3 hover:text-blue-400 ${activeTab === 'profile' ? 'text-blue-400' : ''}`}><User size={20}/> Account</button>
         </div>
         <div className="pt-6 border-t border-slate-700">
@@ -720,6 +841,141 @@ export default function App() {
       </div>
 
       <div className="flex-1 p-6 pt-24 md:p-10 md:pt-10 overflow-y-auto">
+        {/* Floating Ingest Stream Toast */}
+        {streamToast && (
+          <div className="fixed top-6 right-6 z-50 flex items-center gap-3 px-5 py-3.5 bg-slate-900/95 backdrop-blur-xl text-white rounded-2xl shadow-2xl border border-white/10 animate-in slide-in-from-top-4 duration-300">
+            <Zap size={18} className="text-yellow-400 shrink-0 animate-bounce" />
+            <span className="text-sm font-semibold">{streamToast.message}</span>
+            <button onClick={() => setStreamToast(null)} className="text-gray-400 hover:text-white ml-2">
+              <X size={16} />
+            </button>
+          </div>
+        )}
+
+        {/* Global BAM Real-Time Control & Alerts Header */}
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-8 pb-5 border-b border-gray-200/70">
+          <div className="flex items-center gap-3">
+            <span className="relative flex h-3 w-3">
+              <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${autoSyncEnabled ? 'bg-emerald-400' : 'bg-gray-400'} opacity-75`}></span>
+              <span className={`relative inline-flex rounded-full h-3 w-3 ${autoSyncEnabled ? 'bg-emerald-500' : 'bg-gray-400'}`}></span>
+            </span>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:gap-2">
+              <span className="text-xs font-extrabold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+                <Activity size={14} className="text-emerald-500" /> BAM Live Monitoring
+              </span>
+              <span className="text-xs text-gray-400 font-medium hidden sm:inline">• Synced {lastSyncTime}</span>
+            </div>
+            
+            <button 
+              onClick={() => setAutoSyncEnabled(!autoSyncEnabled)} 
+              className={`text-xs px-2.5 py-1 rounded-full font-bold border transition-all ${autoSyncEnabled ? 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100' : 'bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100'}`}
+              title="Toggle automatic 12-second live pulse updates"
+            >
+              {autoSyncEnabled ? '● Live Sync: ON' : '○ Sync: PAUSED'}
+            </button>
+          </div>
+
+          <div className="flex items-center gap-3 relative">
+            {/* Live Ingestion Simulator Pill */}
+            <button
+              onClick={handleSimulateStream}
+              disabled={isSimulatingStream}
+              className="flex items-center gap-2 px-3.5 py-2 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all hover:shadow-md active:scale-95 cursor-pointer disabled:opacity-50"
+              title="Simulate inbound ERP/CRM transaction in real time"
+            >
+              <Zap size={14} className={isSimulatingStream ? "animate-spin text-yellow-300" : "text-yellow-300"} />
+              {isSimulatingStream ? "Ingesting Feed..." : "Simulate ERP Feed"}
+            </button>
+
+            {/* Manual Pulse Refresh */}
+            <button 
+              onClick={() => syncBAMPulse(false)} 
+              disabled={isSyncing}
+              className="p-2 text-gray-600 hover:text-gray-900 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors shadow-sm cursor-pointer"
+              title="Refresh BAM pulse immediately"
+            >
+              <RefreshCw size={16} className={isSyncing ? "animate-spin text-blue-600" : ""} />
+            </button>
+
+            {/* Notification Bell with Badge */}
+            <div className="relative">
+              <button 
+                onClick={() => setIsAlertsOpen(!isAlertsOpen)} 
+                className={`relative p-2 rounded-xl border transition-all shadow-sm cursor-pointer ${isAlertsOpen ? 'bg-blue-50 border-blue-300 text-blue-600' : 'bg-white border-gray-200 text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
+                title="Business Activity Alerts & Triggers"
+              >
+                <Bell size={17} />
+                {unreadAlertCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[10px] font-extrabold w-4 h-4 rounded-full flex items-center justify-center animate-pulse shadow-sm">
+                    {unreadAlertCount}
+                  </span>
+                )}
+              </button>
+
+              {/* Alerts Dropdown Modal */}
+              {isAlertsOpen && (
+                <div className="absolute right-0 mt-3 w-80 sm:w-96 bg-white/95 backdrop-blur-2xl border border-gray-200 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.15)] p-5 z-50 animate-in fade-in slide-in-from-top-3 duration-200">
+                  <div className="flex items-center justify-between pb-3 mb-3 border-b border-gray-100">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 bg-blue-50 text-blue-600 rounded-lg">
+                        <ShieldAlert size={16} />
+                      </div>
+                      <h4 className="font-extrabold text-gray-900 text-sm">Activity Alerts</h4>
+                      {unreadAlertCount > 0 && (
+                        <span className="px-2 py-0.5 bg-rose-100 text-rose-700 text-[10px] font-bold rounded-full">
+                          {unreadAlertCount} unread
+                        </span>
+                      )}
+                    </div>
+                    {unreadAlertCount > 0 && (
+                      <button 
+                        onClick={handleMarkAllAlertsRead} 
+                        className="text-xs font-semibold text-blue-600 hover:text-blue-700 transition-colors"
+                      >
+                        Mark all read
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex flex-col gap-2.5 max-h-80 overflow-y-auto pr-1">
+                    {bamAlerts.length === 0 ? (
+                      <div className="p-6 text-center text-gray-400 text-xs">
+                        No activity triggers right now. All processes are nominal.
+                      </div>
+                    ) : (
+                      bamAlerts.map((alert: any) => (
+                        <div 
+                          key={alert.id} 
+                          className={`p-3.5 rounded-2xl border transition-all text-left flex gap-3 ${
+                            alert.severity === 'critical' ? 'bg-rose-50/80 border-rose-200/80 text-rose-900' :
+                            alert.severity === 'warning' ? 'bg-amber-50/80 border-amber-200/80 text-amber-900' :
+                            alert.severity === 'success' ? 'bg-emerald-50/80 border-emerald-200/80 text-emerald-900' :
+                            'bg-blue-50/80 border-blue-200/80 text-blue-900'
+                          }`}
+                        >
+                          <div className="shrink-0 mt-0.5">
+                            {alert.severity === 'critical' ? <AlertCircle size={16} className="text-rose-600" /> :
+                             alert.severity === 'warning' ? <AlertTriangle size={16} className="text-amber-600" /> :
+                             alert.severity === 'success' ? <CheckCircle2 size={16} className="text-emerald-600" /> :
+                             <Info size={16} className="text-blue-600" />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-extrabold leading-tight">{alert.title}</p>
+                            <p className="text-[11px] mt-1 text-gray-600 leading-relaxed font-medium">{alert.message}</p>
+                            <span className="text-[10px] text-gray-400 mt-1.5 block">
+                              {new Date(alert.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • {alert.metric_type} trigger
+                            </span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
         {activeTab === "upload" && (
           <div className="flex flex-col xl:flex-row gap-8 min-h-[calc(100vh-6rem)] xl:h-[calc(100vh-6rem)] animate-in fade-in duration-500 overflow-y-auto xl:overflow-y-visible pb-8 xl:pb-0">
             
@@ -925,6 +1181,99 @@ export default function App() {
               </div>
             </div>
 
+            {/* BAM Feature 5: Executive Health Scorecards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+              {/* Target vs Actual Revenue Scorecard */}
+              <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-bold uppercase tracking-wider text-gray-500">Target vs Actual</span>
+                  <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
+                    bamScorecards?.target_scorecard?.color === 'emerald' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                    bamScorecards?.target_scorecard?.color === 'amber' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                    'bg-rose-50 text-rose-700 border border-rose-200'
+                  }`}>
+                    {bamScorecards?.target_scorecard?.percentage || 85}% of Goal
+                  </span>
+                </div>
+                <div className="flex items-baseline justify-between mb-2">
+                  <h4 className="text-2xl font-extrabold text-gray-900">
+                    ${formatCompact(overviewData.kpis.total_revenue)}
+                  </h4>
+                  <span className="text-xs text-gray-400 font-semibold">
+                    Target: ${formatCompact(bamScorecards?.target_scorecard?.target || 50000)}
+                  </span>
+                </div>
+                <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
+                  <div 
+                    className="bg-gradient-to-r from-blue-600 to-indigo-600 h-2.5 rounded-full transition-all duration-1000"
+                    style={{ width: `${Math.min(100, bamScorecards?.target_scorecard?.percentage || 85)}%` }}
+                  ></div>
+                </div>
+                <p className="text-[11px] text-gray-500 mt-2.5 flex items-center gap-1 font-medium">
+                  <CheckCircle2 size={13} className="text-emerald-500" /> Operational target calibrated to monthly velocity
+                </p>
+              </div>
+
+              {/* Inventory Risk Index Scorecard */}
+              <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-bold uppercase tracking-wider text-gray-500">Inventory Health Index</span>
+                  <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
+                    bamScorecards?.inventory_scorecard?.color === 'emerald' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                    bamScorecards?.inventory_scorecard?.color === 'amber' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                    'bg-rose-50 text-rose-700 border border-rose-200'
+                  }`}>
+                    {bamScorecards?.inventory_scorecard?.label || "Optimal"}
+                  </span>
+                </div>
+                <div className="flex items-baseline justify-between mb-2">
+                  <h4 className="text-2xl font-extrabold text-gray-900">
+                    {bamScorecards?.inventory_scorecard?.score || 95}<span className="text-sm text-gray-400 font-medium">/100</span>
+                  </h4>
+                  <span className="text-xs text-gray-400 font-semibold">
+                    {bamScorecards?.inventory_scorecard?.low_stock_count || 0} Low Stock
+                  </span>
+                </div>
+                <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
+                  <div 
+                    className={`h-2.5 rounded-full transition-all duration-1000 ${
+                      bamScorecards?.inventory_scorecard?.color === 'rose' ? 'bg-rose-500' :
+                      bamScorecards?.inventory_scorecard?.color === 'amber' ? 'bg-amber-500' :
+                      'bg-emerald-500'
+                    }`}
+                    style={{ width: `${bamScorecards?.inventory_scorecard?.score || 95}%` }}
+                  ></div>
+                </div>
+                <p className="text-[11px] text-gray-500 mt-2.5 flex items-center gap-1 font-medium">
+                  <ShieldAlert size={13} className="text-blue-500" /> Automated replenishment threshold monitoring
+                </p>
+              </div>
+
+              {/* Stream Velocity Scorecard */}
+              <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-bold uppercase tracking-wider text-gray-500">BAM Ingestion Stream</span>
+                  <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 flex items-center gap-1">
+                    <Activity size={12} className="text-blue-500" /> Live Stream
+                  </span>
+                </div>
+                <div className="flex items-baseline justify-between mb-2">
+                  <h4 className="text-2xl font-extrabold text-gray-900">
+                    {bamLive?.total_transactions || totalUnitsSold} <span className="text-sm text-gray-400 font-medium">Events</span>
+                  </h4>
+                  <span className="text-xs text-gray-400 font-semibold">
+                    ~{bamLive?.recent_velocity_per_day || 2.4}/day velocity
+                  </span>
+                </div>
+                <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
+                  <div className="bg-blue-500 h-2.5 rounded-full w-[70%]"></div>
+                </div>
+                <p className="text-[11px] text-gray-500 mt-2.5 flex items-center gap-1 font-medium">
+                  <Zap size={13} className="text-yellow-500" /> Connected to Webhooks & CSV pipeline
+                </p>
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               {/* Line Chart Container */}
               <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100/50 h-[450px] flex flex-col hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
@@ -962,13 +1311,24 @@ export default function App() {
                 <div className="mb-6 flex items-center justify-between">
                   <div>
                     <h3 className="text-xl font-bold text-gray-900">Units Sold by Category</h3>
-                    <p className="text-sm text-gray-500">Distribution of product sales</p>
+                    <p className="text-sm text-gray-500">Click any bar to drill down into root causes</p>
                   </div>
+                  <span className="text-[11px] font-bold px-2.5 py-1 bg-blue-50 text-blue-600 rounded-lg flex items-center gap-1">
+                    <Sliders size={12} /> Clickable
+                  </span>
                 </div>
                 <div className="flex-1 w-full min-h-0 overflow-x-auto overflow-y-hidden">
                     <div className="w-full h-full outline-none focus:outline-none select-none">
                       <ResponsiveContainer width="100%" height="100%" className="outline-none focus:outline-none">
-                        <BarChart data={processedInventoryData} margin={{ top: 10, right: 20, left: 0, bottom: 60 }} style={{ outline: 'none' }}>
+                        <BarChart 
+                          data={processedInventoryData} 
+                          margin={{ top: 10, right: 20, left: 0, bottom: 60 }} 
+                          style={{ outline: 'none' }}
+                          onClick={(entry: any) => {
+                            if (entry?.activeLabel) handleOpenDrilldown(entry.activeLabel);
+                          }}
+                          className="cursor-pointer"
+                        >
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
                         <XAxis 
                           dataKey="category" 
@@ -983,13 +1343,114 @@ export default function App() {
                         />
                         <YAxis stroke="#9ca3af" axisLine={false} tickLine={false} />
                         <Tooltip 
-                          cursor={{ fill: '#f3f4f6' }}
+                          cursor={{ fill: '#eff6ff' }}
                           contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                         />
                         <Bar dataKey="sold" fill="#3b82f6" radius={[6, 6, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
+                </div>
+              </div>
+            </div>
+
+            {/* BAM Feature 4 & 5: Category Revenue Donut Chart & Live Stream Ticker */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8">
+              {/* Category Revenue Distribution Donut Chart */}
+              <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100/50 h-[450px] flex flex-col hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+                <div className="mb-4 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-900">Revenue by Category (Donut)</h3>
+                    <p className="text-sm text-gray-500">Interactive BAM slice — click any segment to drill down</p>
+                  </div>
+                  <button 
+                    onClick={() => handleOpenDrilldown("all")}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    <Eye size={13} /> Drill Down All
+                  </button>
+                </div>
+                <div className="flex-1 w-full min-h-0 flex items-center justify-center">
+                  {(bamScorecards?.category_distribution || []).length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={bamScorecards.category_distribution}
+                          dataKey="value"
+                          nameKey="name"
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={65}
+                          outerRadius={95}
+                          paddingAngle={3}
+                          onClick={(entry) => handleOpenDrilldown(entry?.name)}
+                          className="cursor-pointer outline-none focus:outline-none"
+                        >
+                          {bamScorecards.category_distribution.map((entry: any, index: number) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip 
+                          formatter={(value: any) => [`$${Number(value).toLocaleString()}`, 'Revenue']}
+                          contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                        />
+                        <Legend verticalAlign="bottom" height={36} iconType="circle" />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="text-gray-400 text-sm">Upload data to view category distribution</div>
+                  )}
+                </div>
+              </div>
+
+              {/* BAM Real-Time Inbound Event Feed */}
+              <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100/50 h-[450px] flex flex-col hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+                <div className="mb-4 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl">
+                      <Activity size={18} />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-gray-900">Live Inbound Activity Feed</h3>
+                      <p className="text-sm text-gray-500">Real-time ERP/CRM events streamed to dashboard</p>
+                    </div>
+                  </div>
+                  <span className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-full">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span> Live
+                  </span>
+                </div>
+                
+                <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+                  {(bamLive?.live_stream || []).length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center text-center text-gray-400 text-xs p-6">
+                      <Database size={32} className="mb-2 text-gray-300" />
+                      No live events recorded yet.<br />Click "Simulate ERP Feed" above to test live streaming!
+                    </div>
+                  ) : (
+                    bamLive.live_stream.slice(0, 7).map((item: any) => (
+                      <div 
+                        key={item.id} 
+                        onClick={() => handleOpenDrilldown(item.category)}
+                        className="p-3 bg-gray-50/80 hover:bg-blue-50/60 rounded-2xl border border-gray-100 hover:border-blue-200 transition-all cursor-pointer flex items-center justify-between"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs">
+                            ${Math.round(item.amount / 1000)}k
+                          </div>
+                          <div>
+                            <p className="text-xs font-extrabold text-gray-900">{item.category} • SKU: {item.product_sku}</p>
+                            <p className="text-[11px] text-gray-500">{item.date} • Source: <span className="text-blue-600 font-semibold">{item.source}</span></p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs font-extrabold text-gray-900">${item.amount.toLocaleString()}</p>
+                          <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-0.5 justify-end">
+                            <ArrowUpRight size={10} /> Verified
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             </div>
@@ -1424,6 +1885,295 @@ export default function App() {
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* BAM Feature 3: Data Integration Hub (ERP, CRM, Databases, IoT) */}
+        {activeTab === "integrations" && (
+          <div className="flex flex-col gap-8 animate-in fade-in duration-500 max-w-5xl mx-auto w-full">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-2">
+              <div>
+                <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-50 border border-blue-200 rounded-full text-blue-700 text-xs font-bold mb-2">
+                  <Plug size={13} className="text-blue-600" /> BAM External Gateway
+                </div>
+                <h2 className="text-3xl font-extrabold text-gray-900 tracking-tight">Data Integration Hub</h2>
+                <p className="text-gray-500 mt-1">Connect ERPs, CRMs, POS terminals, and IoT pipelines for live automated ingestion.</p>
+              </div>
+
+              <button
+                onClick={handleSimulateStream}
+                disabled={isSimulatingStream}
+                className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold rounded-2xl shadow-lg shadow-blue-500/20 hover:shadow-xl transition-all active:scale-95 cursor-pointer disabled:opacity-50"
+              >
+                <Zap size={16} className={isSimulatingStream ? "animate-spin text-yellow-300" : "text-yellow-300"} />
+                {isSimulatingStream ? "Streaming Event..." : "Simulate Live Ingest Event"}
+              </button>
+            </div>
+
+            {/* Ingestion Endpoint Card */}
+            <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl">
+                    <Database size={22} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900">Inbound Webhook & REST API</h3>
+                    <p className="text-xs text-gray-500">POST real-time JSON transactions directly into your database</p>
+                  </div>
+                </div>
+                <span className="px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold rounded-full flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span> Live & Listening
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2 p-3.5 bg-gray-50 rounded-2xl border border-gray-200/80 mb-4">
+                <span className="px-2 py-1 bg-blue-600 text-white text-[11px] font-mono font-bold rounded-md">POST</span>
+                <code className="text-xs font-mono text-gray-700 flex-1 truncate">
+                  https://bia-project-nine.vercel.app/api/bam/ingest
+                </code>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText("https://bia-project-nine.vercel.app/api/bam/ingest");
+                    setCopiedWebhook(true);
+                    setTimeout(() => setCopiedWebhook(false), 2000);
+                  }}
+                  className="px-3 py-1.5 bg-white hover:bg-gray-100 border border-gray-200 rounded-xl text-xs font-bold text-gray-700 flex items-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  {copiedWebhook ? <Check size={14} className="text-emerald-600" /> : <Copy size={14} />}
+                  {copiedWebhook ? "Copied" : "Copy"}
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6 pt-6 border-t border-gray-100">
+                <div className="p-4 bg-gray-50/70 rounded-2xl border border-gray-100">
+                  <p className="text-xs font-bold text-gray-500 mb-1">Payload Format</p>
+                  <p className="text-sm font-extrabold text-gray-900">JSON Batch or Single</p>
+                </div>
+                <div className="p-4 bg-gray-50/70 rounded-2xl border border-gray-100">
+                  <p className="text-xs font-bold text-gray-500 mb-1">Authentication</p>
+                  <p className="text-sm font-extrabold text-gray-900">Bearer Token Header</p>
+                </div>
+                <div className="p-4 bg-gray-50/70 rounded-2xl border border-gray-100">
+                  <p className="text-xs font-bold text-gray-500 mb-1">Latency</p>
+                  <p className="text-sm font-extrabold text-emerald-600">&lt; 85ms Ingestion</p>
+                </div>
+                <div className="p-4 bg-gray-50/70 rounded-2xl border border-gray-100">
+                  <p className="text-xs font-bold text-gray-500 mb-1">Triggers</p>
+                  <p className="text-sm font-extrabold text-blue-600">Auto BAM Evaluation</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Supported Systems Grid */}
+            <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+              <h3 className="text-lg font-bold text-gray-900 mb-2">Supported Enterprise Connectors</h3>
+              <p className="text-xs text-gray-500 mb-6">Zero-configuration connector bridges ready for plug-and-play streaming</p>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+                {[
+                  { name: "SAP ERP", category: "ERP System", icon: "🏢" },
+                  { name: "Salesforce", category: "CRM Feed", icon: "☁️" },
+                  { name: "Shopify POS", category: "E-Commerce", icon: "🛍️" },
+                  { name: "Stripe", category: "Payments", icon: "💳" },
+                  { name: "Oracle NetSuite", category: "Cloud ERP", icon: "🔴" },
+                  { name: "IoT POS Gate", category: "Hardware Sensors", icon: "📡" }
+                ].map((conn, idx) => (
+                  <div key={idx} className="p-4 bg-gray-50/80 rounded-2xl border border-gray-200/60 flex flex-col items-center text-center hover:bg-blue-50/50 hover:border-blue-200 transition-all">
+                    <span className="text-2xl mb-2">{conn.icon}</span>
+                    <p className="text-xs font-extrabold text-gray-900 leading-tight">{conn.name}</p>
+                    <p className="text-[10px] text-gray-500 mt-1">{conn.category}</p>
+                    <span className="mt-3 px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[9px] font-bold rounded-full">
+                      Ready
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Quickstart Code Example */}
+            <div className="bg-slate-900 text-white p-8 rounded-3xl shadow-xl border border-white/10">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                  <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+                  <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                  <span className="ml-2 text-xs font-mono text-gray-400">cURL Integration Snippet</span>
+                </div>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(`curl -X POST https://bia-project-nine.vercel.app/api/bam/ingest \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer YOUR_TOKEN" \\
+  -d '{"source_system":"Shopify POS","transactions":[{"amount":2450.0,"category":"Tech Box","product_sku":"TB-PRO-9","customer_id":"CUST-104"}]}'`);
+                    alert("cURL snippet copied to clipboard!");
+                  }}
+                  className="text-xs text-blue-400 hover:text-blue-300 font-mono font-bold cursor-pointer"
+                >
+                  Copy Snippet
+                </button>
+              </div>
+              <pre className="text-xs font-mono text-blue-200/90 overflow-x-auto p-4 bg-slate-950/70 rounded-2xl border border-white/5 leading-relaxed">
+{`curl -X POST https://bia-project-nine.vercel.app/api/bam/ingest \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer YOUR_TOKEN" \\
+  -d '{
+    "source_system": "ERP Gateway",
+    "transactions": [
+      {
+        "amount": 2450.0,
+        "category": "Tech Box",
+        "product_sku": "TB-PRO-9",
+        "customer_id": "CUST-104"
+      }
+    ]
+  }'`}
+              </pre>
+            </div>
+          </div>
+        )}
+
+        {/* BAM Feature 4: Interactive Drill-Down Analysis Drawer / Modal */}
+        {isDrilldownOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white w-full max-w-4xl max-h-[85vh] rounded-3xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+              
+              {/* Modal Header */}
+              <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-slate-50 to-blue-50/50">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-blue-600 text-white rounded-2xl shadow-md shadow-blue-500/20">
+                    <Eye size={22} />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-xl font-extrabold text-gray-900">Drill-Down Root Cause Analysis</h3>
+                      <span className="px-2.5 py-0.5 bg-blue-100 text-blue-800 text-xs font-bold rounded-full">
+                        {drilldownCategory === "all" ? "All Categories" : drilldownCategory}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-0.5">Deep granular inspection of underlying transactions & business drivers</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setIsDrilldownOpen(false)} 
+                  className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* Category Quick Filter Pills */}
+              <div className="px-6 py-3 border-b border-gray-100 bg-gray-50/70 flex items-center gap-2 overflow-x-auto">
+                <span className="text-xs font-bold text-gray-500 shrink-0">Filter Slice:</span>
+                {["all", ...inventoryData.map(i => i.category)].slice(0, 8).map((catName) => (
+                  <button
+                    key={catName}
+                    onClick={() => handleOpenDrilldown(catName)}
+                    className={`px-3 py-1 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+                      drilldownCategory === catName 
+                        ? 'bg-blue-600 text-white shadow-sm' 
+                        : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-100'
+                    }`}
+                  >
+                    {catName === "all" ? "All Segments" : catName}
+                  </button>
+                ))}
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-6 overflow-y-auto flex-1 space-y-6">
+                {isDrilldownLoading ? (
+                  <div className="py-20 flex flex-col items-center justify-center gap-3 text-gray-400">
+                    <RefreshCw size={32} className="animate-spin text-blue-600" />
+                    <p className="text-sm font-semibold">Running root cause analytics...</p>
+                  </div>
+                ) : drilldownData ? (
+                  <>
+                    {/* Automated Root Cause Diagnostics Box */}
+                    <div className="p-5 bg-gradient-to-br from-blue-50 to-indigo-50/60 rounded-2xl border border-blue-200/80">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Sparkles size={16} className="text-blue-600" />
+                        <h4 className="text-sm font-extrabold text-blue-950">Automated Root-Cause Diagnostic</h4>
+                      </div>
+                      <p className="text-xs text-blue-900 leading-relaxed font-medium">
+                        {drilldownData.root_cause_summary}
+                      </p>
+                    </div>
+
+                    {/* Metric Cards Row */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                      <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                        <p className="text-xs font-bold text-gray-500 mb-1">Segment Revenue</p>
+                        <p className="text-xl font-extrabold text-gray-900">${(drilldownData.total_revenue || 0).toLocaleString()}</p>
+                      </div>
+                      <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                        <p className="text-xs font-bold text-gray-500 mb-1">Average Order</p>
+                        <p className="text-xl font-extrabold text-gray-900">${(drilldownData.average_order || 0).toFixed(2)}</p>
+                      </div>
+                      <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                        <p className="text-xs font-bold text-gray-500 mb-1">Top Product SKU</p>
+                        <p className="text-sm font-extrabold text-blue-600 truncate">{drilldownData.top_sku || "N/A"}</p>
+                      </div>
+                      <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                        <p className="text-xs font-bold text-gray-500 mb-1">Key Customer</p>
+                        <p className="text-sm font-extrabold text-indigo-600 truncate">ID #{drilldownData.top_customer || "1"}</p>
+                      </div>
+                    </div>
+
+                    {/* Underlying Granular Transactions Table */}
+                    <div>
+                      <h4 className="text-sm font-extrabold text-gray-900 mb-3 flex items-center justify-between">
+                        <span>Underlying Transaction Records ({drilldownData.total_records})</span>
+                        <span className="text-xs text-gray-400 font-normal">Sorted by highest transaction value</span>
+                      </h4>
+                      <div className="border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-gray-50 text-gray-600 font-bold border-b border-gray-200">
+                            <tr>
+                              <th className="p-3">Date</th>
+                              <th className="p-3">Category</th>
+                              <th className="p-3">SKU</th>
+                              <th className="p-3">Customer</th>
+                              <th className="p-3">Source</th>
+                              <th className="p-3 text-right">Amount</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {(drilldownData.transactions || []).map((tx: any) => (
+                              <tr key={tx.id} className="hover:bg-blue-50/40 transition-colors">
+                                <td className="p-3 text-gray-600 font-medium">{tx.date}</td>
+                                <td className="p-3 font-bold text-gray-800">{tx.category}</td>
+                                <td className="p-3 font-mono text-gray-600">{tx.product_sku}</td>
+                                <td className="p-3 text-gray-600">#{tx.customer_id}</td>
+                                <td className="p-3">
+                                  <span className="px-2 py-0.5 bg-gray-100 text-gray-700 text-[10px] font-semibold rounded-md">
+                                    {tx.source}
+                                  </span>
+                                </td>
+                                <td className="p-3 text-right font-extrabold text-gray-900">
+                                  ${tx.amount.toLocaleString()}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </>
+                ) : null}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-4 border-t border-gray-100 bg-gray-50 flex items-center justify-between">
+                <span className="text-xs text-gray-500 font-medium">BAM Drill-Down Engine • Real-time database slice</span>
+                <button 
+                  onClick={() => setIsDrilldownOpen(false)}
+                  className="px-5 py-2 bg-gray-900 hover:bg-black text-white text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                >
+                  Close Inspection
+                </button>
+              </div>
             </div>
           </div>
         )}
