@@ -38,7 +38,10 @@ export default function App() {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
-  const [overviewData, setOverviewData] = useState<any>(null);
+  const [overviewData, setOverviewData] = useState<any>({
+    kpis: { total_revenue: 0, clv: 0, mom_growth: 0, top_region: null },
+    revenue_trend: []
+  });
   const [cashflowData, setCashflowData] = useState<any>(null);
   const [inventoryData, setInventoryData] = useState<any[]>([]);
   const [inventoryMetrics, setInventoryMetrics] = useState<any>(null);
@@ -628,15 +631,16 @@ export default function App() {
   const isSendingRef = useRef(false);
 
   const processedInventoryData = useMemo(() => {
-    const sorted = [...inventoryData].sort((a, b) => b.sold - a.sold);
+    if (!Array.isArray(inventoryData)) return [];
+    const sorted = [...inventoryData].sort((a, b) => (Number(b?.sold) || 0) - (Number(a?.sold) || 0));
     if (sorted.length <= 15) return sorted;
     const top = sorted.slice(0, 14);
     const rest = sorted.slice(14);
     const other = rest.reduce((acc, curr) => ({
       category: "Other",
-      sold: acc.sold + curr.sold,
-      remaining: acc.remaining + curr.remaining,
-      stock_value: acc.stock_value + curr.stock_value,
+      sold: (acc.sold || 0) + (Number(curr?.sold) || 0),
+      remaining: (acc.remaining || 0) + (Number(curr?.remaining) || 0),
+      stock_value: (acc.stock_value || 0) + (Number(curr?.stock_value) || 0),
       sell_through_rate: 0,
       dio: 0,
       status: "Mixed"
@@ -710,9 +714,9 @@ export default function App() {
     }
   };
 
-  const totalUnitsSold = inventoryData.reduce((sum, item) => sum + item.sold, 0);
+  const totalUnitsSold = (Array.isArray(inventoryData) ? inventoryData : []).reduce((sum, item) => sum + (Number(item?.sold) || 0), 0);
   const avgUnitValue = totalUnitsSold > 0 && overviewData?.kpis?.total_revenue 
-    ? parseFloat(overviewData.kpis.total_revenue) / totalUnitsSold : 0;
+    ? parseFloat(String(overviewData?.kpis?.total_revenue || 0)) / totalUnitsSold : 0;
 
   let runningTotal = 0;
   const cumulativeCashflow = cashflowData?.cashflow?.map((item: any) => {
@@ -1515,8 +1519,8 @@ export default function App() {
                   <DollarSign size={20} className="text-green-600" />
                 </div>
                 <p className="text-gray-500 font-medium mb-1 text-sm">Total Revenue</p>
-                <p className="text-3xl font-extrabold text-gray-900" title={String(overviewData.kpis.total_revenue)}>
-                  ${formatCompact(overviewData.kpis.total_revenue)}
+                <p className="text-3xl font-extrabold text-gray-900" title={String(overviewData?.kpis?.total_revenue ?? 0)}>
+                  ${formatCompact(overviewData?.kpis?.total_revenue ?? 0)}
                 </p>
               </div>
               
@@ -1524,15 +1528,15 @@ export default function App() {
                 <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                   <TrendingUp size={48} />
                 </div>
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-4 ${overviewData.kpis.mom_growth >= 0 ? 'bg-emerald-50' : 'bg-red-50'}`}>
-                  <TrendingUp size={20} className={overviewData.kpis.mom_growth >= 0 ? 'text-emerald-600' : 'text-red-600'} />
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-4 ${(overviewData?.kpis?.mom_growth ?? 0) >= 0 ? 'bg-emerald-50' : 'bg-red-50'}`}>
+                  <TrendingUp size={20} className={(overviewData?.kpis?.mom_growth ?? 0) >= 0 ? 'text-emerald-600' : 'text-red-600'} />
                 </div>
                 <p className="text-gray-500 font-medium mb-1 text-sm">MoM Growth</p>
                 <div className="flex flex-wrap items-baseline gap-2">
                   <p className="text-3xl font-extrabold text-gray-900">
-                    {overviewData.kpis.mom_growth >= 0 ? '+' : ''}{overviewData.kpis.mom_growth}%
+                    {(overviewData?.kpis?.mom_growth ?? 0) >= 0 ? '+' : ''}{overviewData?.kpis?.mom_growth ?? 0}%
                   </p>
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${overviewData.kpis.mom_growth >= 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${(overviewData?.kpis?.mom_growth ?? 0) >= 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
                     vs last mo
                   </span>
                 </div>
@@ -1572,8 +1576,8 @@ export default function App() {
                   <Database size={20} className="text-indigo-600" />
                 </div>
                 <p className="text-gray-500 font-medium mb-1 text-sm">Avg. CLV</p>
-                <p className="text-3xl font-extrabold text-gray-900" title={String(overviewData.kpis.clv)}>
-                  ${formatCompact(overviewData.kpis.clv)}
+                <p className="text-3xl font-extrabold text-gray-900" title={String(overviewData?.kpis?.clv ?? 0)}>
+                  ${formatCompact(overviewData?.kpis?.clv ?? 0)}
                 </p>
               </div>
             </div>
@@ -1595,7 +1599,7 @@ export default function App() {
                 </div>
                 <div className="flex items-baseline justify-between mb-2">
                   <h4 className="text-2xl font-extrabold text-gray-900">
-                    ${formatCompact(overviewData.kpis.total_revenue)}
+                    ${formatCompact(overviewData?.kpis?.total_revenue ?? 0)}
                   </h4>
                   <span className="text-xs text-gray-400 font-semibold">
                     Target: ${formatCompact(bamScorecards?.target_scorecard?.target || 50000)}
@@ -1686,11 +1690,11 @@ export default function App() {
                     <p className="text-sm text-gray-500">Revenue trajectory over time</p>
                   </div>
                 </div>
-                {(overviewData.revenue_trend || []).length > 0 && Number(overviewData?.kpis?.total_revenue || 0) > 0 ? (
+                {(overviewData?.revenue_trend || []).length > 0 && Number(overviewData?.kpis?.total_revenue || 0) > 0 ? (
                   <div className="flex-1 w-full min-h-0 overflow-x-auto overflow-y-hidden">
                     <div className="w-full h-full outline-none focus:outline-none select-none">
                       <ResponsiveContainer width="100%" height="100%" className="outline-none focus:outline-none">
-                        <LineChart data={overviewData.revenue_trend} margin={{ top: 10, right: 20, left: 0, bottom: 20 }} style={{ outline: 'none' }}>
+                        <LineChart data={overviewData?.revenue_trend || []} margin={{ top: 10, right: 20, left: 0, bottom: 20 }} style={{ outline: 'none' }}>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
                           <XAxis dataKey="date" stroke="#9ca3af" axisLine={false} tickLine={false} />
                           <YAxis 
