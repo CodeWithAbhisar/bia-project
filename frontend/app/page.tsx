@@ -1,364 +1,23 @@
 "use client";
+import { useState, useEffect, useRef, useMemo } from "react";
 
-import React, { useState, useEffect, useMemo, useRef } from "react";
+// Central API base URL — empty string routes through Next.js /api rewrite proxy (zero CORS issues)
+const API_BASE = "";
 import axios from "axios";
-import {
-  LayoutDashboard,
-  Wallet,
-  Package,
-  Sparkles,
-  Plug,
-  Bot,
-  UploadCloud,
-  UserCog,
-  Search,
-  Bell,
-  Plus,
-  Download,
-  ChevronLeft,
-  ChevronRight,
-  Sun,
-  Moon,
-  ArrowUpRight,
-  ArrowDownRight,
-  CheckCircle2,
-  AlertTriangle,
-  AlertCircle,
-  TrendingUp,
-  Activity,
-  X,
-  Send,
-  RefreshCw,
-  Check,
-  FileSpreadsheet,
-  ArrowRight,
-  Menu,
-  Clock,
-  DollarSign,
-  ShoppingBag,
-  Users,
-  Zap,
-  ShieldCheck,
-  ShieldAlert,
-  ExternalLink,
-  FileText,
-  Trash2,
-  LogOut,
-  Mail,
-  User,
-  Layers,
-  Lock,
-} from "lucide-react";
-import {
-  ResponsiveContainer,
-  AreaChart,
-  Area,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-} from "recharts";
-
-const API_BASE = "https://bia-project-backend.onrender.com";
-
-// ============================================================================
-// INITIAL DATA & TELEMETRY DEFINITIONS
-// ============================================================================
-
-const TIMEFRAME_DATA: Record<string, { multiplier: number; growth: string; chart: Array<{ label: string; revenue: number; expenses: number }> }> = {
-  "7D": {
-    multiplier: 0.24,
-    growth: "+12.8%",
-    chart: [
-      { label: "Mon", revenue: 4820, expenses: 2150 },
-      { label: "Tue", revenue: 5490, expenses: 2420 },
-      { label: "Wed", revenue: 6120, expenses: 2310 },
-      { label: "Thu", revenue: 5840, expenses: 2890 },
-      { label: "Fri", revenue: 7240, expenses: 2650 },
-      { label: "Sat", revenue: 6910, expenses: 2100 },
-      { label: "Sun", revenue: 6430, expenses: 1980 },
-    ],
-  },
-  "30D": {
-    multiplier: 1,
-    growth: "+18.4%",
-    chart: [
-      { label: "W1", revenue: 8920, expenses: 4120 },
-      { label: "W2", revenue: 10450, expenses: 4680 },
-      { label: "W3", revenue: 11280, expenses: 4450 },
-      { label: "W4", revenue: 12200, expenses: 4890 },
-    ],
-  },
-  "90D": {
-    multiplier: 2.85,
-    growth: "+26.2%",
-    chart: [
-      { label: "Sep", revenue: 36400, expenses: 17200 },
-      { label: "Oct", revenue: 41200, expenses: 18100 },
-      { label: "Nov", revenue: 44550, expenses: 18400 },
-    ],
-  },
-  "YTD": {
-    multiplier: 9.4,
-    growth: "+41.6%",
-    chart: [
-      { label: "Q1", revenue: 88500, expenses: 44200 },
-      { label: "Q2", revenue: 104200, expenses: 48900 },
-      { label: "Q3", revenue: 118900, expenses: 51400 },
-      { label: "Q4", revenue: 132400, expenses: 54100 },
-    ],
-  },
-};
-
-const EMPTY_CHART_DATA = [
-  { label: "W1", revenue: 0, expenses: 0 },
-  { label: "W2", revenue: 0, expenses: 0 },
-  { label: "W3", revenue: 0, expenses: 0 },
-  { label: "W4", revenue: 0, expenses: 0 },
-];
-
-const INITIAL_INSIGHTS = [
-  {
-    id: "ins-1",
-    severity: "warning",
-    category: "Inventory Risk",
-    title: "AeroDesk Mat hits stockout in 4 days",
-    description:
-      "Current velocity (28 units/day) will deplete remaining 112 units before supplier lead time. Draft PO for 250 units?",
-    confidence: 96,
-    impact: "+$4,200 protected",
-    actionLabel: "Draft PO",
-    status: "pending",
-    prompt: "Analyze the stockout risk for AeroDesk Standing Mat and recommend an optimal reorder quantity.",
-  },
-  {
-    id: "ins-2",
-    severity: "opportunity",
-    category: "Margin Expansion",
-    title: "ErgoChair Pro conversion surged +24%",
-    description:
-      "Organic checkout rate rose after bundle pricing update. Shifting $1.2k budget here projects +$5.8k incremental revenue.",
-    confidence: 91,
-    impact: "+$5,800 est. rev",
-    actionLabel: "Reallocate",
-    status: "pending",
-    prompt: "Break down the ErgoChair Pro conversion surge and show projected ROI for reallocating $1,200 in ad spend.",
-  },
-  {
-    id: "ins-3",
-    severity: "critical",
-    category: "Cashflow Anomaly",
-    title: "Fulfillment & SaaS spend up +14.2%",
-    description:
-      "Agent detected 2 duplicate carrier surcharge billings totaling $640 and an unused analytics seat tier.",
-    confidence: 98,
-    impact: "$890/mo savings",
-    actionLabel: "Flag Invoices",
-    status: "pending",
-    prompt: "Why did fulfillment and SaaS expenses spike this week? List the duplicate charges.",
-  },
-];
-
-const INITIAL_FEED = [
-  {
-    id: "ev-1",
-    type: "sale",
-    title: "Shopify POS • Order #8492",
-    category: "ErgoChair Pro (x2)",
-    amount: 798.0,
-    units: 2,
-    time: "2m ago",
-    isNew: false,
-  },
-  {
-    id: "ev-2",
-    type: "sale",
-    title: "Stripe Checkout • B2B Invoice",
-    category: "Studio Desk Bundle (x4)",
-    amount: 2140.0,
-    units: 4,
-    time: "14m ago",
-    isNew: false,
-  },
-  {
-    id: "ev-3",
-    type: "expense",
-    title: "FedEx Fulfillment Settlement",
-    category: "Logistics & Shipping",
-    amount: 312.5,
-    units: 0,
-    time: "38m ago",
-    isNew: false,
-  },
-  {
-    id: "ev-4",
-    type: "sale",
-    title: "Shopify Online • Order #8491",
-    category: "AeroDesk Standing Mat (x3)",
-    amount: 267.0,
-    units: 3,
-    time: "1h ago",
-    isNew: false,
-  },
-  {
-    id: "ev-5",
-    type: "sync",
-    title: "AI Agent Pipeline Sync",
-    category: "248 records reconciled",
-    amount: 0,
-    units: 0,
-    time: "2h ago",
-    isNew: false,
-  },
-];
-
-const INITIAL_INVENTORY = [
-  { sku: "ERG-PRO-01", name: "ErgoChair Pro (Graphite)", stock: 184, velocity: "14/day", cover: "13 days", margin: "48%", status: "Optimal" },
-  { sku: "AER-MAT-04", name: "AeroDesk Standing Mat", stock: 112, velocity: "28/day", cover: "4 days", margin: "54%", status: "Critical" },
-  { sku: "LGT-BAR-09", name: "Halo LED Monitor Bar", stock: 42, velocity: "7/day", cover: "6 days", margin: "61%", status: "Low Stock" },
-  { sku: "DSK-STD-02", name: "Studio Sit-Stand Desk 60\"", stock: 95, velocity: "5/day", cover: "19 days", margin: "42%", status: "Optimal" },
-  { sku: "CAB-MGT-11", name: "Magnetic Cable Tray Kit", stock: 29, velocity: "6/day", cover: "5 days", margin: "68%", status: "Low Stock" },
-  { sku: "DOC-USB-07", name: "Thunderbolt 4 Pro Dock", stock: 140, velocity: "8/day", cover: "17 days", margin: "51%", status: "Optimal" },
-];
-
-const INITIAL_INTEGRATIONS = [
-  { id: "shopify", name: "Shopify Plus", category: "E-Commerce & POS", connected: true, lastSync: "2m ago", records: "14,280 orders" },
-  { id: "stripe", name: "Stripe Billing", category: "Payments & Invoicing", connected: true, lastSync: "Just now", records: "8,912 payouts" },
-  { id: "sheets", name: "Google Sheets", category: "Live Spreadsheets", connected: true, lastSync: "15m ago", records: "3 workbooks" },
-  { id: "square", name: "Square Retail POS", category: "In-Store Terminals", connected: false, lastSync: "Never", records: "Not linked" },
-  { id: "quickbooks", name: "QuickBooks Online", category: "Accounting & Ledger", connected: false, lastSync: "Never", records: "Not linked" },
-  { id: "hubspot", name: "HubSpot CRM", category: "Customer & CLV", connected: true, lastSync: "1h ago", records: "3,410 contacts" },
-];
-
-const CASHFLOW_CATEGORIES = [
-  { category: "Direct Sales", inflow: 28400, outflow: 0 },
-  { category: "B2B Contracts", inflow: 14450, outflow: 0 },
-  { category: "COGS & Restock", inflow: 0, outflow: 11200 },
-  { category: "Fulfillment", inflow: 0, outflow: 3650 },
-  { category: "Marketing & Ads", inflow: 0, outflow: 2480 },
-  { category: "SaaS & Ops", inflow: 0, outflow: 1420 },
-];
-
-// ============================================================================
-// HELPER COMPONENTS
-// ============================================================================
-
-const formatCurrency = (val: number, decimals = 0) => {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  }).format(val || 0);
-};
-
-// Micro Sparkline SVG for KPI Bento Cards
-function MicroSparkline({ data, color = "#4F46E5", isEmpty = false }: { data?: number[]; color?: string; isEmpty?: boolean }) {
-  if (isEmpty || !data || data.length < 2) {
-    return (
-      <svg viewBox="0 0 80 24" className="w-20 h-6 overflow-visible">
-        <line
-          x1="2"
-          y1="14"
-          x2="78"
-          y2="14"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          strokeDasharray="3 3"
-          className="text-slate-300 dark:text-slate-700"
-        />
-      </svg>
-    );
-  }
-
-  const max = Math.max(...data);
-  const min = Math.min(...data);
-  const range = max - min || 1;
-  const points = data
-    .map((d, i) => {
-      const x = (i / (data.length - 1)) * 76 + 2;
-      const y = 21 - ((d - min) / range) * 18;
-      return `${x},${y}`;
-    })
-    .join(" ");
-
-  return (
-    <svg viewBox="0 0 80 24" className="w-20 h-6 overflow-visible">
-      <polyline
-        fill="none"
-        stroke={color}
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        points={points}
-      />
-    </svg>
-  );
-}
-
-// Radial Score Gauge for Inventory Health Index
-function RadialScoreGauge({ score, darkMode }: { score: number; darkMode: boolean }) {
-  const radius = 32;
-  const circumference = 2 * Math.PI * radius;
-  const clamped = Math.max(0, Math.min(100, score));
-  const strokeDashoffset = circumference - (clamped / 100) * circumference;
-  const strokeColor =
-    clamped === 0
-      ? darkMode
-        ? "#334155"
-        : "#E2E8F0"
-      : clamped >= 80
-      ? "#10B981"
-      : clamped >= 60
-      ? "#F59E0B"
-      : "#F43F5E";
-
-  return (
-    <div className="relative inline-flex items-center justify-center shrink-0">
-      <svg className="w-20 h-20 -rotate-90" viewBox="0 0 80 80">
-        <circle
-          cx="40"
-          cy="40"
-          r={radius}
-          fill="none"
-          stroke={darkMode ? "#1E293B" : "#F1F5F9"}
-          strokeWidth="7"
-        />
-        <circle
-          cx="40"
-          cy="40"
-          r={radius}
-          fill="none"
-          stroke={strokeColor}
-          strokeWidth="7"
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={strokeDashoffset}
-          className="transition-all duration-700 ease-out"
-        />
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-lg font-bold tabular-nums leading-none text-slate-900 dark:text-white">
-          {clamped}
-        </span>
-        <span className="text-[10px] font-medium text-slate-400">/100</span>
-      </div>
-    </div>
-  );
-}
-
-// ============================================================================
-// MAIN COMPONENT
-// ============================================================================
+import { LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
+import { UploadCloud, LayoutDashboard, DollarSign, Package, MessageSquare, Bell, Send, CheckCircle, AlertTriangle, Info, LogOut, Search, X, Copy, Check, Sparkles, TrendingUp, Database, FileText, User, Trash2, Menu, Mail, Activity, RefreshCw, Plug, Layers, Zap, ShieldAlert, ArrowUpRight, ArrowDownRight, Eye, ChevronRight, Sliders, CheckCircle2, AlertCircle, Store, CreditCard, PlusCircle, ArrowRight, Clock } from "lucide-react";
 
 export default function App() {
-  // Mount & Token State
   const [isMounted, setIsMounted] = useState(false);
   const [token, setToken] = useState<string | null>(null);
 
-  // Authentication State
+  useEffect(() => {
+    setIsMounted(true);
+    if (typeof window !== "undefined") {
+      const savedToken = localStorage.getItem("token");
+      if (savedToken) setToken(savedToken);
+    }
+  }, []);
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -366,101 +25,13 @@ export default function App() {
   const [fullName, setFullName] = useState("");
   const [company, setCompany] = useState("");
   const [termsAccepted, setTermsAccepted] = useState(false);
+
+  // OTP Verification state
   const [isOtpStep, setIsOtpStep] = useState(false);
   const [otpCode, setOtpCode] = useState("");
   const [isSendingOtp, setIsSendingOtp] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
-  const [authError, setAuthError] = useState("");
 
-  // UI/UX Theme & Navigation
-  const [darkMode, setDarkMode] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [activeNav, setActiveNav] = useState("overview");
-
-  // Mode & Timeframe
-  const [isDemoMode, setIsDemoMode] = useState(true);
-  const [timeframe, setTimeframe] = useState<"7D" | "30D" | "90D" | "YTD">("30D");
-  const [onboardingDismissed, setOnboardingDismissed] = useState(false);
-
-  // Business Telemetry
-  const [baseRevenue, setBaseRevenue] = useState(42850);
-  const [baseExpenses, setBaseExpenses] = useState(18140);
-  const [baseUnits, setBaseUnits] = useState(1284);
-  const [monthlyGoal] = useState(50000);
-  const [insights, setInsights] = useState(INITIAL_INSIGHTS);
-  const [feed, setFeed] = useState(INITIAL_FEED);
-  const [inventory, setInventory] = useState(INITIAL_INVENTORY);
-  const [integrations, setIntegrations] = useState(INITIAL_INTEGRATIONS);
-  const [inventoryFilter, setInventoryFilter] = useState("All");
-  const [insightFilter, setInsightFilter] = useState("All");
-
-  // Modals & Overlays
-  const [copilotOpen, setCopilotOpen] = useState(false);
-  const [txModalOpen, setTxModalOpen] = useState(false);
-  const [notifOpen, setNotifOpen] = useState(false);
-  const [toast, setToast] = useState<{ message: string; tone: "success" | "warning" | "info" } | null>(null);
-
-  // Transaction Modal Form
-  const [txForm, setTxForm] = useState({
-    type: "sale",
-    amount: "",
-    category: "Direct Store Sale",
-    units: "1",
-    note: "",
-  });
-
-  // Copilot Assistant State
-  const [chatInput, setChatInput] = useState("");
-  const [isTyping, setIsTyping] = useState(false);
-  const [messages, setMessages] = useState<Array<{ id: string; role: "user" | "assistant"; text: string; timestamp: string }>>([
-    {
-      id: "m-1",
-      role: "assistant",
-      text: "Hello! I'm your BIA Executive Agent. I'm continuously monitoring your revenue velocity, cashflow anomalies, and inventory cover. What would you like to inspect?",
-      timestamp: "Just now",
-    },
-  ]);
-  const chatEndRef = useRef<HTMLDivElement>(null);
-
-  // Backend User & Files Data
-  const [userProfile, setUserProfile] = useState<{ email: string; files: any[] } | null>(null);
-  const [file, setFile] = useState<File | null>(null);
-  const [uploadError, setUploadError] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  // Google Sheets Integration Form
-  const [googleSheetUrl, setGoogleSheetUrl] = useState("");
-  const [isSyncingSheet, setIsSyncingSheet] = useState(false);
-  const [sheetSyncResult, setSheetSyncResult] = useState("");
-
-  // Toast notifier
-  const showToast = (message: string, tone: "success" | "warning" | "info" = "success") => {
-    setToast({ message, tone });
-    setTimeout(() => {
-      setToast((prev) => (prev?.message === message ? null : prev));
-    }, 3400);
-  };
-
-  // Mount initialization & token loading
-  useEffect(() => {
-    setIsMounted(true);
-    if (typeof window !== "undefined") {
-      const savedToken = localStorage.getItem("token");
-      if (savedToken) setToken(savedToken);
-      const savedDark = localStorage.getItem("bia_dark_mode");
-      if (savedDark !== null) setDarkMode(savedDark === "true");
-    }
-  }, []);
-
-  // Sync dark mode preference
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("bia_dark_mode", String(darkMode));
-    }
-  }, [darkMode]);
-
-  // Resend cooldown timer
   useEffect(() => {
     if (resendCooldown > 0) {
       const timer = setTimeout(() => setResendCooldown(resendCooldown - 1), 1000);
@@ -468,147 +39,79 @@ export default function App() {
     }
   }, [resendCooldown]);
 
-  // Global Cmd+K / Ctrl+K shortcut
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        setCopilotOpen((prev) => !prev);
-      }
-      if (e.key === "Escape") {
-        setCopilotOpen(false);
-        setTxModalOpen(false);
-        setNotifOpen(false);
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  const [activeTab, setActiveTab] = useState("dashboard");
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
+  const [overviewData, setOverviewData] = useState<any>({
+    kpis: { total_revenue: 0, clv: 0, mom_growth: 0, top_region: null },
+    revenue_trend: []
+  });
+  const [cashflowData, setCashflowData] = useState<any>(null);
+  const [inventoryData, setInventoryData] = useState<any[]>([]);
+  const [inventoryMetrics, setInventoryMetrics] = useState<any>(null);
+  const [inventorySearch, setInventorySearch] = useState("");
+  const [insightsData, setInsightsData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  // Auto-scroll copilot drawer
-  useEffect(() => {
-    if (copilotOpen && chatEndRef.current) {
-      chatEndRef.current.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [messages, isTyping, copilotOpen]);
+  // BAM (Business Activity Monitoring) States
+  const [bamLive, setBamLive] = useState<any>(null);
+  const [bamAlerts, setBamAlerts] = useState<any[]>([]);
+  const [unreadAlertCount, setUnreadAlertCount] = useState(0);
+  const [isAlertsOpen, setIsAlertsOpen] = useState(false);
+  const [bamScorecards, setBamScorecards] = useState<any>(null);
+  const [autoSyncEnabled, setAutoSyncEnabled] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [lastSyncTime, setLastSyncTime] = useState<string>("Just now");
 
-  // Fetch real backend profile & data
-  const fetchProfile = async () => {
-    if (!token) return;
-    try {
-      const config = { headers: { Authorization: `Bearer ${token}` } };
-      const res = await axios.get(`${API_BASE}/api/user/profile`, config);
-      setUserProfile(res.data);
-    } catch {}
-  };
+  // BAM Drill-Down Modal State
+  const [isDrilldownOpen, setIsDrilldownOpen] = useState(false);
+  const [drilldownCategory, setDrilldownCategory] = useState<string>("all");
+  const [drilldownData, setDrilldownData] = useState<any>(null);
+  const [isDrilldownLoading, setIsDrilldownLoading] = useState(false);
 
-  const fetchBackendData = async () => {
-    if (!token) return;
-    try {
-      const config = { headers: { Authorization: `Bearer ${token}` } };
-      const [oRes, cRes, iRes, bRes] = await Promise.all([
-        axios.get(`${API_BASE}/api/analytics/overview`, config).catch(() => null),
-        axios.get(`${API_BASE}/api/analytics/cashflow`, config).catch(() => null),
-        axios.get(`${API_BASE}/api/inventory`, config).catch(() => null),
-        axios.get(`${API_BASE}/api/bam/live`, config).catch(() => null),
-      ]);
+  // BAM Ingestion & Simulation State
+  const [isSimulatingStream, setIsSimulatingStream] = useState(false);
+  const [isLoadingDemo, setIsLoadingDemo] = useState(false);
+  const [streamToast, setStreamToast] = useState<{ message: string; type: "success" | "info" | "warning" } | null>(null);
+  const [copiedWebhook, setCopiedWebhook] = useState(false);
 
-      if (oRes?.data?.kpis?.total_revenue && Number(oRes.data.kpis.total_revenue) > 0) {
-        setBaseRevenue(Number(oRes.data.kpis.total_revenue));
-      }
-      if (cRes?.data?.financial_metrics?.burn_rate) {
-        setBaseExpenses(Number(cRes.data.financial_metrics.burn_rate) * 4);
-      }
-      if (iRes?.data?.inventory && Array.isArray(iRes.data.inventory) && iRes.data.inventory.length > 0) {
-        const mapped = iRes.data.inventory.map((item: any, idx: number) => ({
-          sku: `SKU-${100 + idx}`,
-          name: item.category,
-          stock: Number(item.remaining) || 50,
-          velocity: `${item.sold || 0}/day`,
-          cover: `${Math.max(2, Math.round((item.remaining || 50) / Math.max(1, item.sold || 1)))} days`,
-          margin: `${Math.round(45 + (idx % 20))}%`,
-          status: item.status === "Low Stock" ? "Low Stock" : item.status === "Out of Stock" ? "Critical" : "Optimal",
-        }));
-        setInventory(mapped);
-      }
-      if (bRes?.data?.live_stream && Array.isArray(bRes.data.live_stream) && bRes.data.live_stream.length > 0) {
-        const streamEvents = bRes.data.live_stream.map((item: any) => ({
-          id: `b-ev-${item.id}`,
-          type: "sale",
-          title: `Online Order • SKU ${item.product_sku || "Direct"}`,
-          category: item.category,
-          amount: Number(item.amount) || 0,
-          units: 1,
-          time: item.date || "Today",
-          isNew: false,
-        }));
-        setFeed((prev) => [...streamEvents, ...prev.slice(0, 5)]);
-      }
-    } catch {}
-  };
+  // Small Business Zero-Code Integration States
+  const [googleSheetUrl, setGoogleSheetUrl] = useState("");
+  const [isSyncingSheet, setIsSyncingSheet] = useState(false);
+  const [sheetSyncResult, setSheetSyncResult] = useState<string>("");
+  const [quickSaleAmount, setQuickSaleAmount] = useState("");
+  const [quickSaleCategory, setQuickSaleCategory] = useState("Tech Box");
+  const [quickSaleChannel, setQuickSaleChannel] = useState("In-Store POS");
+  const [quickSaleNote, setQuickSaleNote] = useState("");
+  const [isRecordingSale, setIsRecordingSale] = useState(false);
+  const [quickSaleFeedback, setQuickSaleFeedback] = useState<string>("");
+
+  // Insights tab state
+  const [insightFilter, setInsightFilter] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [dismissedInsights, setDismissedInsights] = useState<string[]>([]);
+  const [copiedInsight, setCopiedInsight] = useState<string | null>(null);
+  
+  const [chatInput, setChatInput] = useState("");
+  const [chatLog, setChatLog] = useState<{role: string, text: string}[]>([]);
+  const [isChatLoading, setIsChatLoading] = useState(false);
+  const [isChatStreaming, setIsChatStreaming] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (token) {
-      fetchProfile();
-      fetchBackendData();
-    }
-  }, [token]);
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatLog, isChatLoading]);
 
-  // Derived Metrics
-  const metrics = useMemo(() => {
-    if (!isDemoMode) {
-      return {
-        revenue: 0,
-        expenses: 0,
-        netMargin: 0,
-        growth: "0.0%",
-        units: 0,
-        aov: 0,
-        clv: 0,
-        goalProgress: 0,
-        healthScore: 0,
-        lowStockCount: 0,
-        chartData: EMPTY_CHART_DATA,
-      };
-    }
-
-    const tf = TIMEFRAME_DATA[timeframe];
-    const scaledRev = Math.round(baseRevenue * tf.multiplier);
-    const scaledExp = Math.round(baseExpenses * tf.multiplier);
-    const scaledUnits = Math.round(baseUnits * tf.multiplier);
-    const aov = scaledUnits > 0 ? scaledRev / (scaledUnits * 0.268) : 0;
-    const clv = aov * 5.15;
-    const goalProgress = Math.min(100, (baseRevenue / monthlyGoal) * 100);
-    const lowStockCount = inventory.filter((i) => i.status !== "Optimal").length;
-
-    return {
-      revenue: scaledRev,
-      expenses: scaledExp,
-      netMargin: scaledRev > 0 ? ((scaledRev - scaledExp) / scaledRev) * 100 : 0,
-      growth: tf.growth,
-      units: scaledUnits,
-      aov,
-      clv,
-      goalProgress,
-      healthScore: Math.max(60, 96 - lowStockCount * 4),
-      lowStockCount,
-      chartData: tf.chart,
-    };
-  }, [isDemoMode, timeframe, baseRevenue, baseExpenses, baseUnits, monthlyGoal, inventory]);
-
-  const unreadInsightsCount = useMemo(
-    () => (isDemoMode ? insights.filter((i) => i.status === "pending").length : 0),
-    [insights, isDemoMode]
-  );
-
-  // Google Single Sign-On
+  // Tracking uploaded files and errors
+  const [uploadError, setUploadError] = useState("");
+  const [authError, setAuthError] = useState("");
+  
   const handleGoogleSuccess = async (response: any) => {
     try {
-      const res = await axios.post(`${API_BASE}/api/auth/google`, { credential: response.credential });
+      const res = await axios.post(API_BASE + "/api/auth/google", { credential: response.credential });
       if (res.data.access_token) {
         setToken(res.data.access_token);
         localStorage.setItem("token", res.data.access_token);
-        showToast("Signed in with Google successfully!", "success");
       }
     } catch (e: any) {
       setAuthError(e.response?.data?.detail || "Google authentication failed.");
@@ -631,12 +134,12 @@ export default function App() {
           btn.innerHTML = "";
           google.accounts.id.renderButton(btn, {
             type: "standard",
-            theme: darkMode ? "filled_black" : "outline",
+            theme: "outline",
             size: "large",
-            text: "continue_with",
+            width: btn.clientWidth || 360,
+            text: authMode === "login" ? "signin_with" : "signup_with",
             shape: "rectangular",
-            logo_alignment: "left",
-            width: 320,
+            logo_alignment: "center",
           });
         }
       }
@@ -644,16 +147,270 @@ export default function App() {
 
     initGoogle();
     const interval = setInterval(() => {
-      if ((typeof window !== "undefined" ? (window as any).google?.accounts?.id : null)) {
+      if ((window as any).google?.accounts?.id) {
         initGoogle();
         clearInterval(interval);
       }
     }, 400);
 
     return () => clearInterval(interval);
-  }, [token, darkMode]);
+  }, [token, authMode]);
+  
+  // Profile state
+  const [userProfile, setUserProfile] = useState<{email: string, files: any[]} | null>(null);
 
-  // Authentication Handlers
+  const fetchProfile = async () => {
+    try {
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      const res = await axios.get(API_BASE + "/api/user/profile", config);
+      setUserProfile(res.data);
+    } catch (e: any) {
+      if (e.response && (e.response.status === 401 || e.response.status === 404)) {
+        localStorage.removeItem("token");
+        setUserProfile(null);
+        setToken(null);
+        return;
+      }
+      console.warn("Failed to fetch profile:", e?.message || e);
+    }
+  };
+
+  const fetchAllData = async () => {
+    try {
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      
+      const [overviewRes, cashflowRes, invRes, insightsRes, bamLiveRes, bamAlertsRes, bamScorecardsRes] = await Promise.all([
+        axios.get(API_BASE + "/api/analytics/overview", config),
+        axios.get(API_BASE + "/api/analytics/cashflow", config),
+        axios.get(API_BASE + "/api/inventory", config),
+        axios.get(API_BASE + "/api/insights", config),
+        axios.get(API_BASE + "/api/bam/live", config).catch(() => ({ data: null })),
+        axios.get(API_BASE + "/api/bam/alerts", config).catch(() => ({ data: { alerts: [], unread_count: 0 } })),
+        axios.get(API_BASE + "/api/bam/scorecards", config).catch(() => ({ data: null }))
+      ]);
+
+      setOverviewData(overviewRes.data);
+      setCashflowData(cashflowRes.data);
+      setInventoryData(invRes.data.inventory || []);
+      setInventoryMetrics(invRes.data.metrics || null);
+      setInsightsData(insightsRes.data.insights || []);
+      if (bamLiveRes?.data) setBamLive(bamLiveRes.data);
+      if (bamAlertsRes?.data) {
+        setBamAlerts(bamAlertsRes.data.alerts || []);
+        setUnreadAlertCount(bamAlertsRes.data.unread_count || 0);
+      }
+      if (bamScorecardsRes?.data) setBamScorecards(bamScorecardsRes.data);
+      setLastSyncTime(new Date().toLocaleTimeString());
+    } catch (e: any) {
+      console.log("No data found or unauthorized.");
+      if (e.response && (e.response.status === 401 || e.response.status === 404)) {
+        localStorage.removeItem("token");
+        setToken(null);
+      }
+    }
+  };
+
+  const syncBAMPulse = async (silent = true) => {
+    if (!token) return;
+    if (!silent) setIsSyncing(true);
+    try {
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      const [liveRes, alertsRes, scorecardsRes, overviewRes] = await Promise.all([
+        axios.get(API_BASE + "/api/bam/live", config).catch(() => null),
+        axios.get(API_BASE + "/api/bam/alerts", config).catch(() => null),
+        axios.get(API_BASE + "/api/bam/scorecards", config).catch(() => null),
+        axios.get(API_BASE + "/api/analytics/overview", config).catch(() => null),
+      ]);
+      if (liveRes?.data) setBamLive(liveRes.data);
+      if (alertsRes?.data) {
+        setBamAlerts(alertsRes.data.alerts || []);
+        setUnreadAlertCount(alertsRes.data.unread_count || 0);
+      }
+      if (scorecardsRes?.data) setBamScorecards(scorecardsRes.data);
+      if (overviewRes?.data) setOverviewData(overviewRes.data);
+      setLastSyncTime(new Date().toLocaleTimeString());
+    } catch {
+      // silent
+    } finally {
+      if (!silent) setIsSyncing(false);
+    }
+  };
+
+  // Feature 1: Real-Time Polling & Heartbeat (every 12 seconds)
+  useEffect(() => {
+    if (!token || !autoSyncEnabled) return;
+    const interval = setInterval(() => {
+      syncBAMPulse(true);
+    }, 12000);
+    return () => clearInterval(interval);
+  }, [token, autoSyncEnabled]);
+
+  // Feature 4: Drill-Down Analysis Trigger
+  const handleOpenDrilldown = async (category = "all", date?: string) => {
+    setIsDrilldownOpen(true);
+    setIsDrilldownLoading(true);
+    setDrilldownCategory(category);
+    try {
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      const params = new URLSearchParams();
+      if (category && category !== "all") params.append("category", category);
+      if (date) params.append("date", date);
+      const res = await axios.get(`${API_BASE}/api/bam/drilldown?${params.toString()}`, config);
+      setDrilldownData(res.data);
+    } catch (e) {
+      console.error("Drilldown query error:", e);
+    } finally {
+      setIsDrilldownLoading(false);
+    }
+  };
+
+  // Feature 3: Live Inbound ERP/CRM Stream Simulator
+  const handleSimulateStream = async () => {
+    setIsSimulatingStream(true);
+    try {
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      const res = await axios.post(`${API_BASE}/api/bam/simulate-stream`, {}, config);
+      setStreamToast({
+        message: `⚡ Live Sale Processed: $${res.data.transaction.amount.toFixed(2)} in ${res.data.transaction.category} from ${res.data.transaction.source}`,
+        type: "success"
+      });
+      setTimeout(() => setStreamToast(null), 5000);
+      await syncBAMPulse(false);
+      const [oRes, cRes, iRes] = await Promise.all([
+        axios.get(`${API_BASE}/api/analytics/overview`, config).catch(() => null),
+        axios.get(`${API_BASE}/api/analytics/cashflow`, config).catch(() => null),
+        axios.get(`${API_BASE}/api/inventory`, config).catch(() => null),
+      ]);
+      if (oRes?.data) setOverviewData(oRes.data);
+      if (cRes?.data) setCashflowData(cRes.data);
+      if (iRes?.data?.inventory) {
+        setInventoryData(iRes.data.inventory || []);
+        if (iRes.data.metrics) setInventoryMetrics(iRes.data.metrics);
+      }
+    } catch {
+      setStreamToast({
+        message: "Simulation failed. Please verify network.",
+        type: "warning"
+      });
+      setTimeout(() => setStreamToast(null), 4000);
+    } finally {
+      setIsSimulatingStream(false);
+    }
+  };
+
+  const handleLoadDemoData = async () => {
+    setIsLoadingDemo(true);
+    try {
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      await axios.post(`${API_BASE}/api/bam/seed-demo-data`, {}, config);
+      await syncBAMPulse(false);
+      const [oRes, cRes, iRes] = await Promise.all([
+        axios.get(`${API_BASE}/api/analytics/overview`, config).catch(() => null),
+        axios.get(`${API_BASE}/api/analytics/cashflow`, config).catch(() => null),
+        axios.get(`${API_BASE}/api/inventory`, config).catch(() => null),
+      ]);
+      if (oRes?.data) setOverviewData(oRes.data);
+      if (cRes?.data) setCashflowData(cRes.data);
+      if (iRes?.data?.inventory) {
+        setInventoryData(iRes.data.inventory || []);
+        if (iRes.data.metrics) setInventoryMetrics(iRes.data.metrics);
+      }
+      setStreamToast({
+        message: "⚡ Store Operations Initialized: Live sales & inventory metrics synchronized!",
+        type: "success"
+      });
+      setTimeout(() => setStreamToast(null), 5000);
+    } catch (e: any) {
+      setStreamToast({
+        message: "Failed to initialize store data: " + (e.response?.data?.detail || e.message),
+        type: "warning"
+      });
+      setTimeout(() => setStreamToast(null), 4000);
+    } finally {
+      setIsLoadingDemo(false);
+    }
+  };
+
+  // Feature 2: Mark All Alerts Read
+  const handleMarkAllAlertsRead = async () => {
+    try {
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      await axios.post(`${API_BASE}/api/bam/alerts/read-all`, {}, config);
+      setUnreadAlertCount(0);
+      setBamAlerts(prev => prev.map(a => ({ ...a, is_read: 1 })));
+    } catch {
+      // silent
+    }
+  };
+
+  // Small Business: 1-Click Google Sheet Sync
+  const handleSyncGoogleSheet = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!googleSheetUrl.trim()) return;
+    setIsSyncingSheet(true);
+    setSheetSyncResult("");
+    try {
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      const res = await axios.post(`${API_BASE}/api/bam/sync-google-sheet`, { sheet_url: googleSheetUrl }, config);
+      setSheetSyncResult("✅ " + res.data.message);
+      setGoogleSheetUrl("");
+      await syncBAMPulse(false);
+      fetchAllData();
+    } catch (e: any) {
+      setSheetSyncResult("❌ " + (e.response?.data?.detail || "Could not sync sheet. Ensure sharing is 'Anyone with link can view'."));
+    } finally {
+      setIsSyncingSheet(false);
+    }
+  };
+
+  // Small Business: Quick POS / Walk-in Sale Entry
+  const handleRecordQuickSale = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const val = parseFloat(quickSaleAmount);
+    if (isNaN(val) || val <= 0) return;
+    setIsRecordingSale(true);
+    setQuickSaleFeedback("");
+    try {
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      const res = await axios.post(`${API_BASE}/api/bam/quick-sale`, {
+        amount: val,
+        category: quickSaleCategory,
+        channel: quickSaleChannel,
+        customer_name: quickSaleChannel === "In-Store POS" ? "Walk-in Buyer" : "Direct Order",
+        note: quickSaleNote || undefined
+      }, config);
+      setQuickSaleFeedback("✅ " + res.data.message);
+      setQuickSaleAmount("");
+      setQuickSaleNote("");
+      setTimeout(() => setQuickSaleFeedback(""), 4000);
+      await syncBAMPulse(false);
+      fetchAllData();
+    } catch {
+      setQuickSaleFeedback("❌ Failed to record sale.");
+    } finally {
+      setIsRecordingSale(false);
+    }
+  };
+
+  useEffect(() => {
+    if (token) {
+      fetchAllData();
+      fetchProfile();
+    }
+  }, [token]);
+
+  const handleDeleteFile = async (fileId: number) => {
+    if (!confirm("Are you sure you want to delete this file and all its data?")) return;
+    try {
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      await axios.delete(`${API_BASE}/api/user/files/${fileId}`, config);
+      fetchProfile();
+      fetchAllData();
+    } catch {
+      alert("Failed to delete file");
+    }
+  };
+
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError("");
@@ -663,45 +420,64 @@ export default function App() {
       setAuthError("Please enter a valid email address.");
       return;
     }
-
+    
     if (authMode === "register") {
       if (password !== confirmPassword) {
         setAuthError("Passwords do not match. Please try again.");
         return;
       }
-      if (password.length < 8) {
+
+      const passHasLength = password.length >= 8;
+      const passHasUpper = /[A-Z]/.test(password);
+      const passHasLower = /[a-z]/.test(password);
+      const passHasNumber = /[0-9]/.test(password);
+      const passHasSpecial = /[!@#$%^&*(),.?":{}|<>\-_=+[\];/~`]/.test(password);
+
+      if (!passHasLength) {
         setAuthError("Password must be at least 8 characters long.");
         return;
       }
-      if (!/[A-Z]/.test(password)) {
+      if (!passHasUpper) {
         setAuthError("Password must contain at least one uppercase letter (A-Z).");
         return;
       }
-      if (!/[a-z]/.test(password)) {
+      if (!passHasLower) {
         setAuthError("Password must contain at least one lowercase letter (a-z).");
         return;
       }
-      if (!/[0-9]/.test(password)) {
+      if (!passHasNumber) {
         setAuthError("Password must contain at least one number (0-9).");
         return;
       }
+      if (!passHasSpecial) {
+        setAuthError("Password must contain at least one special character (!@#$%^&*...).");
+        return;
+      }
+      
       if (!termsAccepted) {
         setAuthError("You must accept the Terms of Service to create an account.");
         return;
       }
     }
+    
+    // Catch common typos for popular domains
+    const domain = email.split('@')[1].toLowerCase();
+    const invalidDomains = ['gmail.co', 'gmail.con', 'gmail.com.co', 'yaho.com', 'yahoo.co', 'hotmail.co'];
+    if (invalidDomains.includes(domain)) {
+      setAuthError(`Invalid domain extension. Did you mean .com?`);
+      return;
+    }
 
     try {
       if (authMode === "register") {
         setIsSendingOtp(true);
-        await axios.post(`${API_BASE}/api/auth/send-otp`, { email });
+        await axios.post(API_BASE + "/api/auth/send-otp", { email });
         setIsOtpStep(true);
         setResendCooldown(60);
       } else {
-        const res = await axios.post(`${API_BASE}/api/auth/login`, { email, password });
+        const res = await axios.post(API_BASE + "/api/auth/login", { email, password });
         setToken(res.data.access_token);
         localStorage.setItem("token", res.data.access_token);
-        showToast("Welcome back! Workspace loaded.", "success");
       }
     } catch (e: any) {
       setAuthError(e.response?.data?.detail || "Authentication failed.");
@@ -719,17 +495,16 @@ export default function App() {
     }
     try {
       setIsSendingOtp(true);
-      const res = await axios.post(`${API_BASE}/api/auth/verify-otp`, {
+      const res = await axios.post(API_BASE + "/api/auth/verify-otp", {
         email,
         otp: otpCode.trim(),
         password,
         full_name: fullName || undefined,
-        company: company || undefined,
+        company: company || undefined
       });
       if (res.data.access_token) {
         setToken(res.data.access_token);
         localStorage.setItem("token", res.data.access_token);
-        showToast("Registration verified! Welcome to BIA Platform.", "success");
       }
     } catch (e: any) {
       setAuthError(e.response?.data?.detail || "Failed to verify code.");
@@ -743,9 +518,8 @@ export default function App() {
     try {
       setAuthError("");
       setIsSendingOtp(true);
-      await axios.post(`${API_BASE}/api/auth/send-otp`, { email });
+      await axios.post(API_BASE + "/api/auth/send-otp", { email });
       setResendCooldown(60);
-      showToast("A new 6-digit verification code has been sent.", "info");
     } catch (e: any) {
       setAuthError(e.response?.data?.detail || "Failed to resend code.");
     } finally {
@@ -753,332 +527,236 @@ export default function App() {
     }
   };
 
+  const handleExportReport = () => {
+    if (!overviewData || !overviewData.kpis) return;
+    try {
+      const csvContent = "data:text/csv;charset=utf-8," 
+        + "Metric,Value\n"
+        + `Total Revenue,${overviewData.kpis.total_revenue}\n`
+        + `MoM Growth,${overviewData.kpis.mom_growth}%\n`
+        + `Avg Order Value,${avgUnitValue}\n`
+        + `Avg CLV,${overviewData.kpis.clv}\n`;
+      
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", "BI_Dashboard_Report.csv");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch {
+      alert("Error generating report.");
+    }
+  };
+
   const handleLogout = () => {
     setToken(null);
     setUserProfile(null);
     localStorage.removeItem("token");
-    showToast("Logged out of workspace.", "info");
+    setOverviewData(null);
+    setCashflowData(null);
+    setInventoryData([]);
+    setInventoryMetrics(null);
+    setInsightsData([]);
+    setDismissedInsights([]);
+    setChatLog([]); 
   };
 
-  // Interaction Handlers
-  const handleExecuteInsight = (id: string) => {
-    const target = insights.find((i) => i.id === id);
-    if (!target || target.status === "executed") return;
-
-    setInsights((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, status: "executed" } : item))
-    );
-
-    if (id === "ins-1") {
-      setInventory((prev) =>
-        prev.map((item) =>
-          item.sku === "AER-MAT-04"
-            ? { ...item, stock: item.stock + 250, cover: "13 days", status: "Optimal" }
-            : item
-        )
-      );
-    }
-
-    setFeed((prev) => [
-      {
-        id: `ev-act-${Date.now()}`,
-        type: "sync",
-        title: `AI Agent Executed: ${target.actionLabel}`,
-        category: target.title,
-        amount: 0,
-        units: 0,
-        time: "Just now",
-        isNew: true,
-      },
-      ...prev,
-    ]);
-
-    showToast(`Agent executed "${target.actionLabel}" successfully.`, "success");
-  };
-
-  const handleAskAgent = (promptText: string) => {
-    setCopilotOpen(true);
-    if (promptText) {
-      handleSendPrompt(promptText);
-    }
-  };
-
-  const generateAgentResponse = (query: string) => {
-    const q = query.toLowerCase();
-    if (!isDemoMode) {
-      return `Your workspace is currently in **Empty State** with no live telemetry connected. Click **"Try Sample Data"** in the header or connect Shopify/Stripe so I can analyze real-time margins, cashflow, and SKU velocity.`;
-    }
-
-    if (q.includes("cashflow") || q.includes("summary") || q.includes("today")) {
-      return `**Cashflow Executive Summary (${timeframe}):**\n• Gross Revenue: **${formatCurrency(metrics.revenue)}** (${metrics.growth} vs prior period)\n• Operating Outflows: **${formatCurrency(metrics.expenses)}**\n• Net Operating Margin: **${metrics.netMargin.toFixed(1)}%**\n\nYou are currently at **${metrics.goalProgress.toFixed(1)}%** of your $50,000 monthly target — tracking 6.2% ahead of pace.`;
-    }
-    if (q.includes("sku") || q.includes("restock") || q.includes("inventory") || q.includes("stockout")) {
-      const lowItems = inventory.filter((i) => i.status !== "Optimal");
-      if (lowItems.length === 0) {
-        return `All **${inventory.length} active SKUs** are currently at optimal stock cover (>12 days). Inventory Health Index is **${metrics.healthScore}/100**.`;
+  // File selection validation
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = e.target.files?.[0];
+    setUploadError(""); // Clear any previous errors
+    
+    if (selected) {
+      const currentlyUploaded = userProfile?.files?.map(f => f.filename) || [];
+      if (currentlyUploaded.includes(selected.name)) {
+        setUploadError(`You have already uploaded "${selected.name}".`);
+        setFile(null); // Prevent storing the file in state
+        e.target.value = ""; // Visually clear the HTML input
+      } else {
+        setFile(selected); // Valid file, store in state
       }
-      const list = lowItems
-        .map((i) => `• **${i.name}** (${i.sku}): ${i.stock} units left (~${i.cover} cover)`)
-        .join("\n");
-      return `I detected **${lowItems.length} SKUs** below safety threshold:\n${list}\n\nRecommendation: Trigger automated PO for **AeroDesk Standing Mat** first to protect ~$4,200 in projected weekly sales.`;
-    }
-    if (q.includes("margin") || q.includes("dip") || q.includes("spike") || q.includes("expense")) {
-      return `**Margin & Anomaly Audit:**\nNet margin dipped slightly (-1.4%) over the last 72 hours due to:\n1. **2 duplicate FedEx surcharge billings** ($640 total)\n2. **Seasonal paid-search CPC uptick** (+9% on non-brand terms)\n\nExecuting the *"Flag Invoices"* action in your Executive Brief recovers **$890/mo** immediately.`;
-    }
-    if (q.includes("forecast") || q.includes("next month")) {
-      const projected = Math.round(baseRevenue * 1.184);
-      return `**30-Day Revenue Forecast (92% Confidence):**\nBased on current velocity (${metrics.growth} MoM) and ErgoChair Pro conversion lift, next month is projected at **${formatCurrency(projected)}**.\n• Upside scenario: ${formatCurrency(Math.round(projected * 1.09))}\n• Conservative floor: ${formatCurrency(Math.round(projected * 0.94))}`;
-    }
-    return `Based on live workspace telemetry (**${formatCurrency(metrics.revenue)}** revenue, **${metrics.units.toLocaleString()}** units, **${metrics.netMargin.toFixed(1)}%** net margin), operations are healthy. Would you like me to draft a supplier PO, audit fulfillment costs, or export a board summary?`;
-  };
-
-  const handleSendPrompt = async (overrideText?: string) => {
-    const text = (overrideText ?? chatInput).trim();
-    if (!text) return;
-
-    const userMsg = {
-      id: `u-${Date.now()}`,
-      role: "user" as const,
-      text,
-      timestamp: "Just now",
-    };
-
-    setMessages((prev) => [...prev, userMsg]);
-    setChatInput("");
-    setIsTyping(true);
-
-    // Call backend AI chat if authenticated, else fallback to intelligent simulation
-    if (token) {
-      try {
-        const config = { headers: { Authorization: `Bearer ${token}` } };
-        const res = await axios.post(`${API_BASE}/api/ai/chat`, { message: text }, config);
-        if (res.data?.reply || res.data?.response) {
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: `a-${Date.now()}`,
-              role: "assistant",
-              text: res.data.reply || res.data.response,
-              timestamp: "Just now",
-            },
-          ]);
-          setIsTyping(false);
-          return;
-        }
-      } catch {}
-    }
-
-    setTimeout(() => {
-      const reply = generateAgentResponse(text);
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `a-${Date.now()}`,
-          role: "assistant",
-          text: reply,
-          timestamp: "Just now",
-        },
-      ]);
-      setIsTyping(false);
-    }, 650);
-  };
-
-  const handleRecordTransaction = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const numericAmount = parseFloat(txForm.amount);
-    const numericUnits = parseInt(txForm.units, 10) || 0;
-
-    if (isNaN(numericAmount) || numericAmount <= 0) {
-      showToast("Please enter a valid positive amount.", "warning");
-      return;
-    }
-
-    if (!isDemoMode) {
-      setIsDemoMode(true);
-    }
-
-    if (txForm.type === "sale") {
-      setBaseRevenue((prev) => prev + numericAmount);
-      setBaseUnits((prev) => prev + Math.max(1, numericUnits));
     } else {
-      setBaseExpenses((prev) => prev + numericAmount);
-    }
-
-    const newEvent = {
-      id: `tx-${Date.now()}`,
-      type: txForm.type,
-      title:
-        txForm.note.trim() ||
-        (txForm.type === "sale" ? "Manual Store Sale" : "Recorded Business Outflow"),
-      category:
-        txForm.type === "sale"
-          ? `${txForm.category} (x${Math.max(1, numericUnits)})`
-          : txForm.category,
-      amount: numericAmount,
-      units: txForm.type === "sale" ? Math.max(1, numericUnits) : 0,
-      time: "Just now",
-      isNew: true,
-    };
-
-    setFeed((prev) => [newEvent, ...prev]);
-    setTxModalOpen(false);
-    setTxForm({
-      type: "sale",
-      amount: "",
-      category: "Direct Store Sale",
-      units: "1",
-      note: "",
-    });
-
-    // Also persist to backend if signed in
-    if (token) {
-      try {
-        const config = { headers: { Authorization: `Bearer ${token}` } };
-        await axios.post(
-          `${API_BASE}/api/bam/quick-sale`,
-          {
-            amount: numericAmount,
-            category: txForm.category,
-            source: txForm.note.trim() || "Manual Register POS",
-            note: txForm.note.trim() || "POS Entry",
-          },
-          config
-        );
-      } catch {}
-    }
-
-    showToast(
-      `${txForm.type === "sale" ? "Sale" : "Expense"} of ${formatCurrency(numericAmount, 2)} synced to live ledger.`,
-      "success"
-    );
-  };
-
-  const handleToggleIntegration = (id: string) => {
-    setIntegrations((prev) =>
-      prev.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              connected: !item.connected,
-              lastSync: !item.connected ? "Just now" : "Paused",
-              records: !item.connected ? "Syncing stream..." : "Disconnected",
-            }
-          : item
-      )
-    );
-    const found = integrations.find((i) => i.id === id);
-    if (found) {
-      showToast(
-        `${found.name} ${found.connected ? "disconnected" : "connected & syncing"}.`,
-        found.connected ? "warning" : "success"
-      );
+      setFile(null); // User cancelled selection
     }
   };
 
-  const handleAutoReorder = (sku: string) => {
-    setInventory((prev) =>
-      prev.map((item) =>
-        item.sku === sku
-          ? { ...item, stock: item.stock + 150, cover: "18 days", status: "Optimal" }
-          : item
-      )
-    );
-    showToast(`AI Agent dispatched automated reorder PO (+150 units) for ${sku}.`, "success");
-  };
-
-  const handleSyncGoogleSheet = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!googleSheetUrl) return;
-    setIsSyncingSheet(true);
-    setSheetSyncResult("");
-    try {
-      const config = { headers: { Authorization: `Bearer ${token}` } };
-      const res = await axios.post(`${API_BASE}/api/bam/google-sheet-sync`, { sheet_url: googleSheetUrl }, config);
-      setSheetSyncResult(`✓ Synced ${res.data.rows_imported || "all"} rows from Google Sheets!`);
-      showToast("Google Sheet synced to live dashboard.", "success");
-      fetchBackendData();
-    } catch (e: any) {
-      setSheetSyncResult(e.response?.data?.detail || "Make sure your Google Sheet is shared with 'Anyone with the link can view'.");
-      showToast("Failed to sync Google Sheet. Check link permissions.", "warning");
-    } finally {
-      setIsSyncingSheet(false);
-    }
-  };
-
-  const handleFileUpload = async () => {
-    if (!file || !token) return;
+  const handleUpload = async () => {
+    if (!file) return;
     setLoading(true);
     const formData = new FormData();
     formData.append("file", file);
     try {
       const config = { headers: { Authorization: `Bearer ${token}` } };
-      await axios.post(`${API_BASE}/api/upload`, formData, config);
+      await axios.post(API_BASE + "/api/upload", formData, config);
+      
+      // Reset upload inputs immediately
       setFile(null);
-      showToast("File uploaded! AI Agent is analyzing dataset...", "info");
-      fetchProfile();
-      fetchBackendData();
+      const fileInput = document.getElementById('dataset-upload') as HTMLInputElement;
+      if (fileInput) fileInput.value = "";
+      setChatLog([]); 
+
+      // Poll until processing is complete
+      const pollInterval = setInterval(async () => {
+        try {
+          const res = await axios.get(API_BASE + "/api/user/profile", config);
+          setUserProfile(res.data);
+          
+          const isProcessing = res.data.files.some((f: any) => f.status === "processing");
+          
+          if (!isProcessing) {
+            clearInterval(pollInterval);
+            setLoading(false);
+            
+            const hasFailed = res.data.files.some((f: any) => f.status === "failed");
+            if (hasFailed) {
+              alert("Data Processing Failed. Check file format.");
+            } else {
+              alert("Processing Complete! Data ready.");
+              fetchAllData();
+            }
+          }
+        } catch {
+          clearInterval(pollInterval);
+          setLoading(false);
+        }
+      }, 2000);
+      
     } catch (e: any) {
-      showToast(e.response?.data?.detail || "Upload failed. Check file format.", "warning");
-    } finally {
       setLoading(false);
+      if (e.response && e.response.data && e.response.data.detail) {
+        alert("Upload Error: " + e.response.data.detail);
+      } else {
+        alert("Upload failed. Check server.");
+      }
     }
   };
 
-  const handleDeleteFile = async (fileId: number) => {
-    if (!token) return;
+  const isSendingRef = useRef(false);
+
+  const processedInventoryData = useMemo(() => {
+    if (!Array.isArray(inventoryData)) return [];
+    const sorted = [...inventoryData].sort((a, b) => (Number(b?.sold) || 0) - (Number(a?.sold) || 0));
+    if (sorted.length <= 15) return sorted;
+    const top = sorted.slice(0, 14);
+    const rest = sorted.slice(14);
+    const other = rest.reduce((acc, curr) => ({
+      category: "Other",
+      sold: (acc.sold || 0) + (Number(curr?.sold) || 0),
+      remaining: (acc.remaining || 0) + (Number(curr?.remaining) || 0),
+      stock_value: (acc.stock_value || 0) + (Number(curr?.stock_value) || 0),
+      sell_through_rate: 0,
+      dio: 0,
+      status: "Mixed"
+    }), { category: "Other", sold: 0, remaining: 0, stock_value: 0, sell_through_rate: 0, dio: 0, status: "Mixed" });
+    return [...top, other];
+  }, [inventoryData]);
+
+  const handleSendMessage = async () => {
+    if (!chatInput.trim() || isChatLoading || isChatStreaming || isSendingRef.current) return;
+    isSendingRef.current = true;
+    
+    const userMsg = chatInput;
+    setChatLog((prev) => [...prev, { role: "user", text: userMsg }, { role: "ai", text: "" }]);
+    setChatInput("");
+    setIsChatLoading(true);
+    setIsChatStreaming(true);
+
     try {
-      const config = { headers: { Authorization: `Bearer ${token}` } };
-      await axios.delete(`${API_BASE}/api/user/files/${fileId}`, config);
-      showToast("File deleted from workspace.", "info");
-      fetchProfile();
-      fetchBackendData();
+      const response = await fetch(API_BASE + "/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ message: userMsg, history: chatLog })
+      });
+
+      if (!response.body) throw new Error("No response body");
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      
+      setIsChatLoading(false); // Stop loading animation since stream is starting
+      
+      let accumulatedText = "";
+      
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        const chunk = decoder.decode(value, { stream: true });
+        accumulatedText += chunk;
+        
+        // Update the last message in the chat log with the new chunk
+        // Update the last message idempotently
+        setChatLog((prev) => {
+          const newLog = [...prev];
+          const lastMsg = newLog[newLog.length - 1];
+          newLog[newLog.length - 1] = {
+            ...lastMsg,
+            text: accumulatedText
+          };
+          return newLog;
+        });
+      }
     } catch {
-      showToast("Failed to delete file.", "warning");
+      setChatLog((prev) => {
+        const newLog = [...prev];
+        const lastMsg = newLog[newLog.length - 1];
+        if (lastMsg && lastMsg.role === "ai" && lastMsg.text === "") {
+           newLog[newLog.length - 1] = { ...lastMsg, text: "Error reaching AI." };
+        } else {
+           newLog.push({ role: "ai", text: "Error reaching AI." });
+        }
+        return newLog;
+      });
+      setIsChatLoading(false);
+    } finally {
+      setIsChatStreaming(false);
+      isSendingRef.current = false;
     }
   };
 
-  // Navigation Items
-  const navSections = [
-    {
-      label: "MONITORING & ANALYTICS",
-      items: [
-        { id: "overview", label: "Overview Dashboard", icon: LayoutDashboard },
-        { id: "cashflow", label: "Cashflow Analytics", icon: Wallet },
-        { id: "inventory", label: "Inventory Health", icon: Package },
-        {
-          id: "insights",
-          label: "Proactive Insights",
-          icon: Sparkles,
-          badge: unreadInsightsCount > 0 ? unreadInsightsCount : null,
-        },
-      ],
-    },
-    {
-      label: "AUTOMATIONS & TOOLS",
-      items: [
-        { id: "integrations", label: "Store Integrations", icon: Plug },
-        { id: "copilot", label: "AI Copilot Assistant", icon: Bot, opensDrawer: true },
-        { id: "upload", label: "Upload Datasets", icon: UploadCloud },
-      ],
-    },
-    {
-      label: "PREFERENCES",
-      items: [{ id: "account", label: "Account & Files", icon: UserCog }],
-    },
-  ];
+  const totalUnitsSold = (Array.isArray(inventoryData) ? inventoryData : []).reduce((sum, item) => sum + (Number(item?.sold) || 0), 0);
+  const avgUnitValue = totalUnitsSold > 0 && overviewData?.kpis?.total_revenue 
+    ? parseFloat(String(overviewData?.kpis?.total_revenue || 0)) / totalUnitsSold : 0;
 
-  // ============================================================================
-  // CONDITIONAL RENDERING: LOADING & AUTHENTICATION
-  // ============================================================================
+  let runningTotal = 0;
+  const cumulativeCashflow = cashflowData?.cashflow?.map((item: any) => {
+    runningTotal += (item.amount || 0);
+    return { date: item.date, balance: parseFloat(runningTotal.toFixed(2)) };
+  }) || [];
+
+  // Derived state for insights
+  const visibleInsights = insightsData.filter((insight) => {
+    if (dismissedInsights.includes(insight.title)) return false;
+    if (insightFilter !== "all" && insight.type !== insightFilter) return false;
+    if (searchQuery && !insight.title.toLowerCase().includes(searchQuery.toLowerCase()) && !insight.description.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+    return true;
+  });
+
+  const insightCounts = {
+    total: insightsData.filter(i => !dismissedInsights.includes(i.title)).length,
+    success: insightsData.filter(i => i.type === 'success' && !dismissedInsights.includes(i.title)).length,
+    alert: insightsData.filter(i => i.type === 'alert' && !dismissedInsights.includes(i.title)).length,
+    info: insightsData.filter(i => i.type === 'info' && !dismissedInsights.includes(i.title)).length,
+  };
+
+  const handleCopyInsight = (insight: any) => {
+    navigator.clipboard.writeText(`${insight.title}: ${insight.description}`);
+    setCopiedInsight(insight.title);
+    setTimeout(() => setCopiedInsight(null), 2000);
+  };
 
   if (!isMounted) {
     return (
-      <div className="flex min-h-screen bg-[#F8FAFC] items-center justify-center">
+      <div className="flex min-h-screen bg-[#F8FAFC] items-center justify-center font-sans">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-indigo-600 flex items-center justify-center text-white shadow-md animate-pulse">
-            <Sparkles size={20} />
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center font-bold text-white shadow-lg shadow-blue-500/30 animate-pulse">
+            ⚡
           </div>
-          <p className="text-xs text-slate-500 font-medium">Initializing BIA Workspace...</p>
+          <p className="text-xs text-slate-500 font-medium tracking-wide">Initializing workspace...</p>
         </div>
       </div>
     );
@@ -1086,40 +764,49 @@ export default function App() {
 
   if (!token) {
     return (
-      <div className="flex min-h-screen bg-[#F8FAFC] dark:bg-[#0B0F19] items-center justify-center p-4 relative overflow-hidden font-sans">
+      <div className="flex min-h-screen bg-[#F8FAFC] items-center justify-center p-4 relative overflow-hidden font-sans">
         {/* Soft Ambient Light Gradient Orbs */}
         <div className="absolute -top-40 -left-40 w-[500px] h-[500px] bg-blue-500/10 rounded-full filter blur-[120px] pointer-events-none" />
         <div className="absolute -bottom-40 -right-40 w-[500px] h-[500px] bg-indigo-500/10 rounded-full filter blur-[120px] pointer-events-none" />
 
-        <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 p-8 sm:p-10 rounded-3xl shadow-xl w-full max-w-[440px] relative z-10 animate-in fade-in duration-300">
+        {/* Ambient Subtle Grid */}
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#e2e8f080_1px,transparent_1px),linear-gradient(to_bottom,#e2e8f080_1px,transparent_1px)] bg-[size:32px_32px] pointer-events-none" />
+        
+        <div className="bg-white border border-slate-200/90 p-8 sm:p-10 rounded-3xl shadow-xl w-full max-w-[440px] relative z-10 text-slate-900 animate-in fade-in duration-500">
           {isOtpStep ? (
-            <div className="flex flex-col">
-              <div className="flex flex-col items-center justify-center mb-6 text-center">
-                <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-500/20 flex items-center justify-center mb-3 shadow-sm">
-                  <Mail size={24} />
+            <div className="flex flex-col animate-in fade-in duration-300">
+              <div className="flex flex-col items-center justify-center mb-6">
+                <div className="bg-blue-50 border border-blue-200 text-blue-600 p-4 rounded-2xl mb-4 shadow-sm">
+                  <Mail size={32} />
                 </div>
-                <h2 className="text-xl font-bold text-slate-900 dark:text-white">Verify Your Email</h2>
-                <p className="text-slate-500 dark:text-slate-400 mt-1.5 text-xs">
+                <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight text-center">
+                  Verify Your Email
+                </h2>
+                <p className="text-slate-500 mt-2 text-xs text-center leading-relaxed">
                   We sent a 6-digit verification code to<br />
-                  <span className="font-semibold text-slate-900 dark:text-white">{email}</span>
+                  <span className="font-semibold text-slate-800">{email}</span>
                 </p>
               </div>
 
               {authError && (
-                <div className="mb-4 p-3 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-400 rounded-xl text-xs text-center font-medium">
+                <div className="mb-5 p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs text-center font-medium flex items-center justify-center gap-2">
+                  <AlertTriangle size={15} />
                   {authError}
                 </div>
               )}
 
               <form onSubmit={handleVerifyOtp} className="flex flex-col gap-4">
                 <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-2 text-center">
+                    Enter Verification Code
+                  </label>
                   <input
                     type="text"
                     maxLength={6}
                     placeholder="123456"
                     value={otpCode}
                     onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
-                    className="w-full text-center text-3xl font-extrabold tracking-[10px] font-mono p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 text-slate-900 dark:text-white"
+                    className="w-full text-center text-3xl font-extrabold tracking-[10px] font-mono p-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all text-slate-900 placeholder-slate-400"
                     required
                     autoFocus
                   />
@@ -1128,18 +815,18 @@ export default function App() {
                 <button
                   type="submit"
                   disabled={isSendingOtp}
-                  className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold py-3.5 px-4 rounded-xl transition-all shadow-md shadow-indigo-600/20 text-xs cursor-pointer"
+                  className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 text-white font-bold py-3.5 px-4 rounded-2xl transition-all shadow-md shadow-blue-600/25 mt-1 cursor-pointer text-sm"
                 >
-                  {isSendingOtp ? "Verifying Code..." : "Verify & Launch Workspace"}
+                  {isSendingOtp ? "Verifying Code..." : "Verify & Launch Dashboard"}
                 </button>
               </form>
 
-              <div className="flex flex-col items-center gap-2.5 mt-5 text-xs">
+              <div className="flex flex-col items-center gap-3 mt-6 text-xs">
                 <button
                   type="button"
                   disabled={resendCooldown > 0 || isSendingOtp}
                   onClick={handleResendOtp}
-                  className="font-medium text-indigo-600 dark:text-indigo-400 hover:underline disabled:text-slate-400"
+                  className="font-semibold text-blue-600 hover:text-blue-700 disabled:text-slate-400 transition-colors cursor-pointer"
                 >
                   {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : "Didn't receive code? Resend"}
                 </button>
@@ -1150,626 +837,1479 @@ export default function App() {
                     setOtpCode("");
                     setAuthError("");
                   }}
-                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                  className="text-slate-500 hover:text-slate-700 underline transition-colors cursor-pointer"
                 >
-                  Back to Registration
+                  Edit registration info
                 </button>
               </div>
             </div>
           ) : (
             <>
-              {/* Brand Header */}
-              <div className="flex flex-col items-center justify-center mb-6 text-center">
-                <div className="w-12 h-12 rounded-2xl bg-indigo-600 text-white flex items-center justify-center mb-3 shadow-md shadow-indigo-500/25">
-                  <Sparkles size={24} />
-                </div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-xl font-extrabold text-slate-900 dark:text-white tracking-tight">BIA Platform</h2>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30">
-                    PRO
-                  </span>
-                </div>
-                <p className="text-slate-500 dark:text-slate-400 text-xs mt-1">Autonomous All-Rounder AI Business Agent</p>
-              </div>
+          {/* Brand Header */}
+          <div className="flex flex-col items-center justify-center mb-6 text-center">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 flex items-center justify-center mb-4 shadow-md shadow-blue-500/25">
+              <Sparkles size={28} className="text-white" />
+            </div>
+            <div className="flex items-center gap-2 mb-1">
+              <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">BIA Platform</h2>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                PRO
+              </span>
+            </div>
+            <p className="text-slate-500 text-xs font-medium">
+              All-Rounder AI Business Agent & Intelligence Platform
+            </p>
+          </div>
 
-              {/* Segmented Auth Mode Switcher */}
-              <div className="grid grid-cols-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl mb-5 text-xs font-semibold">
-                <button
-                  type="button"
-                  onClick={() => { setAuthMode("login"); setAuthError(""); }}
-                  className={`py-2 rounded-lg transition-all ${
-                    authMode === "login"
-                      ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm"
-                      : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                  }`}
-                >
-                  Sign In
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setAuthMode("register"); setAuthError(""); }}
-                  className={`py-2 rounded-lg transition-all ${
-                    authMode === "register"
-                      ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm"
-                      : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                  }`}
-                >
-                  Create Account
-                </button>
-              </div>
+          {/* Segmented Sign In / Sign Up Switcher */}
+          <div className="grid grid-cols-2 p-1 bg-slate-100 rounded-2xl border border-slate-200 mb-6">
+            <button
+              type="button"
+              onClick={() => { setAuthMode("login"); setAuthError(""); }}
+              className={`py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+                authMode === "login" 
+                  ? "bg-white text-slate-900 shadow-sm" 
+                  : "text-slate-500 hover:text-slate-900"
+              }`}
+            >
+              Sign In
+            </button>
+            <button
+              type="button"
+              onClick={() => { setAuthMode("register"); setAuthError(""); }}
+              className={`py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+                authMode === "register" 
+                  ? "bg-white text-slate-900 shadow-sm" 
+                  : "text-slate-500 hover:text-slate-900"
+              }`}
+            >
+              Create Account
+            </button>
+          </div>
+          
+          <div className="flex flex-col gap-3 mb-5">
+            <div id="google-signin-btn" className="w-full flex justify-center min-h-[44px]">
+              <button 
+                type="button" 
+                onClick={() => {
+                  const google = (typeof window !== "undefined" ? (window as any).google : null);
+                  if (google?.accounts?.id) {
+                    google.accounts.id.prompt();
+                  } else {
+                    alert("Google Sign-In is initializing. Please try again in a moment.");
+                  }
+                }} 
+                className="flex items-center justify-center gap-3 w-full p-3 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-all font-semibold text-slate-700 text-xs cursor-pointer shadow-xs"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+                Continue with Google
+              </button>
+            </div>
+          </div>
 
-              {/* Google Single Sign-On */}
-              <div className="flex flex-col gap-3 mb-4">
-                <div id="google-signin-btn" className="w-full flex justify-center min-h-[44px]">
-                  <button 
-                    type="button" 
-                    onClick={() => {
-                      const google = (typeof window !== "undefined" ? (window as any).google : null);
-                      if (google?.accounts?.id) {
-                        google.accounts.id.prompt();
-                      } else {
-                        showToast("Google Sign-In is initializing. Please try again.", "info");
-                      }
-                    }} 
-                    className="flex items-center justify-center gap-2.5 w-full py-2.5 px-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700/60 transition-all font-semibold text-slate-700 dark:text-slate-200 text-xs cursor-pointer shadow-xs"
-                  >
-                    <svg className="w-4 h-4" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
-                    Continue with Google
-                  </button>
-                </div>
-                <div className="relative flex items-center justify-center my-0.5">
-                  <div className="border-t border-slate-200 dark:border-slate-800 w-full" />
-                  <span className="bg-white dark:bg-slate-900 px-3 text-[10px] text-slate-400 uppercase tracking-widest font-semibold absolute">or with email</span>
-                </div>
-              </div>
+          <div className="relative mb-5">
+            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-200"></div></div>
+            <div className="relative flex justify-center text-xs"><span className="px-3 bg-white text-slate-400 font-medium">Or continue with email</span></div>
+          </div>
 
-              {authError && (
-                <div className="mb-4 p-3 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-400 rounded-xl text-xs text-center font-medium">
-                  {authError}
-                </div>
-              )}
-
-              <form onSubmit={handleAuth} className="flex flex-col gap-3.5">
-                {authMode === "register" && (
-                  <>
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-1">Full Name</label>
-                      <input
-                        type="text"
-                        placeholder="Alex Morgan"
-                        value={fullName}
-                        onChange={(e) => setFullName(e.target.value)}
-                        className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-1">Company / Brand Name</label>
-                      <input
-                        type="text"
-                        placeholder="Apex Commerce Inc"
-                        value={company}
-                        onChange={(e) => setCompany(e.target.value)}
-                        className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500"
-                        required
-                      />
-                    </div>
-                  </>
-                )}
-
+          {authError && (
+            <div className="mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs text-center font-medium flex items-center justify-center gap-2">
+              <AlertTriangle size={15}/>{authError}
+            </div>
+          )}
+          
+          <form onSubmit={handleAuth} className="flex flex-col gap-3.5">
+            
+            {authMode === "register" && (
+              <>
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-1">Business Email</label>
-                  <input
-                    type="email"
-                    placeholder="you@company.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500"
-                    required
-                  />
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Full Name</label>
+                  <input type="text" placeholder="John Doe" value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all text-slate-900 text-xs placeholder-slate-400" required />
                 </div>
-
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-1">Password</label>
-                  <input
-                    type="password"
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500"
-                    required
-                  />
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Company Name</label>
+                  <input type="text" placeholder="Acme Inc" value={company} onChange={(e) => setCompany(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all text-slate-900 text-xs placeholder-slate-400" required />
                 </div>
+              </>
+            )}
 
-                {authMode === "register" && (
-                  <>
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-1">Confirm Password</label>
-                      <input
-                        type="password"
-                        placeholder="••••••••"
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500"
-                        required
-                      />
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Work Email</label>
+              <input type="email" placeholder="you@company.com" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all text-slate-900 text-xs placeholder-slate-400" required />
+            </div>
+            
+            <div>
+              <div className="flex justify-between items-center mb-1">
+                <label className="block text-xs font-semibold text-slate-700">Password</label>
+                {authMode === "login" && <a href="#" className="text-xs font-semibold text-blue-600 hover:text-blue-700">Forgot?</a>}
+              </div>
+              <input type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all text-slate-900 text-xs placeholder-slate-400" required />
+              
+              {authMode === "register" && password.length > 0 && (() => {
+                const hasLength = password.length >= 8;
+                const hasUpper = /[A-Z]/.test(password);
+                const hasLower = /[a-z]/.test(password);
+                const hasNumber = /[0-9]/.test(password);
+                const hasSpecial = /[!@#$%^&*(),.?":{}|<>\-_=+[\];/~`]/.test(password);
+                const score = [hasLength, hasUpper, hasLower, hasNumber, hasSpecial].filter(Boolean).length;
+
+                return (
+                  <div className="mt-2.5 p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-col gap-2 animate-in fade-in duration-200">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-slate-500 font-medium">Password Strength:</span>
+                      <span className={`font-bold ${
+                        score <= 2 ? "text-rose-600" :
+                        score <= 4 ? "text-amber-600" :
+                        "text-emerald-600"
+                      }`}>
+                        {score <= 2 ? "Weak" : score <= 4 ? "Medium" : "Strong"}
+                      </span>
                     </div>
-                    <label className="flex items-center gap-2 cursor-pointer mt-1">
-                      <input
-                        type="checkbox"
-                        checked={termsAccepted}
-                        onChange={(e) => setTermsAccepted(e.target.checked)}
-                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                      />
-                      <span className="text-[11px] text-slate-500">I agree to the Terms of Service & Privacy Policy</span>
-                    </label>
-                  </>
-                )}
 
-                <button
-                  type="submit"
-                  disabled={isSendingOtp}
-                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-xl transition-all shadow-md shadow-indigo-600/20 mt-2 text-xs cursor-pointer disabled:opacity-50"
-                >
-                  {authMode === "login" ? "Sign In to Workspace" : "Send Verification Code"}
-                </button>
-              </form>
+                    {/* 4-segment indicator */}
+                    <div className="grid grid-cols-4 gap-1.5 h-1.5 w-full">
+                      <div className={`rounded-full h-full transition-all ${
+                        score >= 1 ? (score <= 2 ? "bg-rose-500" : score <= 4 ? "bg-amber-500" : "bg-emerald-500") : "bg-slate-200"
+                      }`} />
+                      <div className={`rounded-full h-full transition-all ${
+                        score >= 2 ? (score <= 2 ? "bg-rose-500" : score <= 4 ? "bg-amber-500" : "bg-emerald-500") : "bg-slate-200"
+                      }`} />
+                      <div className={`rounded-full h-full transition-all ${
+                        score >= 3 ? (score <= 4 ? "bg-amber-500" : "bg-emerald-500") : "bg-slate-200"
+                      }`} />
+                      <div className={`rounded-full h-full transition-all ${
+                        score === 5 ? "bg-emerald-500" : "bg-slate-200"
+                      }`} />
+                    </div>
+
+                    {/* Live Checklist */}
+                    <div className="grid grid-cols-2 gap-1 mt-0.5 text-[10px]">
+                      <span className={`flex items-center gap-1.5 ${hasLength ? "text-emerald-600 font-semibold" : "text-slate-400"}`}>
+                        <span>{hasLength ? "✓" : "○"}</span> 8+ characters
+                      </span>
+                      <span className={`flex items-center gap-1.5 ${hasUpper ? "text-emerald-600 font-semibold" : "text-slate-400"}`}>
+                        <span>{hasUpper ? "✓" : "○"}</span> 1 Uppercase (A-Z)
+                      </span>
+                      <span className={`flex items-center gap-1.5 ${hasLower ? "text-emerald-600 font-semibold" : "text-slate-400"}`}>
+                        <span>{hasLower ? "✓" : "○"}</span> 1 Lowercase (a-z)
+                      </span>
+                      <span className={`flex items-center gap-1.5 ${hasNumber ? "text-emerald-600 font-semibold" : "text-slate-400"}`}>
+                        <span>{hasNumber ? "✓" : "○"}</span> 1 Number (0-9)
+                      </span>
+                      <span className={`col-span-2 flex items-center gap-1.5 ${hasSpecial ? "text-emerald-600 font-semibold" : "text-slate-400"}`}>
+                        <span>{hasSpecial ? "✓" : "○"}</span> 1 Special symbol (!@#$...)
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {authMode === "register" && (
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Confirm Password</label>
+                <input type="password" placeholder="••••••••" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all text-slate-900 text-xs placeholder-slate-400" required />
+              </div>
+            )}
+
+            {authMode === "register" && (
+              <div className="flex items-start gap-2 mt-1">
+                <input type="checkbox" id="terms" checked={termsAccepted} onChange={(e) => setTermsAccepted(e.target.checked)} className="mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 bg-white" required />
+                <label htmlFor="terms" className="text-[11px] text-slate-500 leading-relaxed">
+                  I agree to the <a href="#" className="text-blue-600 hover:underline">Terms of Service</a> and <a href="#" className="text-blue-600 hover:underline">Privacy Policy</a>.
+                </label>
+              </div>
+            )}
+
+            <button type="submit" className="w-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold py-3.5 px-4 rounded-xl transition-all shadow-md shadow-blue-500/25 mt-2 text-xs cursor-pointer">
+              {authMode === "login" ? "Sign In to Dashboard" : "Create Account & Verify OTP"}
+            </button>
+          </form>
             </>
           )}
         </div>
       </div>
     );
   }
+  
+  const formatCompact = (val: any) => {
+    if (val === null || val === undefined) return "0";
+    const n = Number(val);
+    if (isNaN(n) || !isFinite(n)) return "0";
+    try {
+      return new Intl.NumberFormat('en-US', { notation: "compact", maximumFractionDigits: 1 }).format(n);
+    } catch {
+      return String(n);
+    }
+  };
 
-  // ============================================================================
-  // TAB VIEWS
-  // ============================================================================
+  return (
+    <div className="flex h-screen bg-[#f8fafc] text-slate-900 relative overflow-hidden font-sans">
+      {/* Mobile Top Nav */}
+      <div className="md:hidden absolute top-0 left-0 right-0 h-16 bg-white/95 backdrop-blur-xl border-b border-slate-200/80 flex items-center justify-between px-6 z-30 shadow-sm">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center font-bold text-white text-xs shadow-sm">
+            ⚡
+          </div>
+          <span className="font-bold text-slate-900 text-sm">BIA Platform</span>
+        </div>
+        <button onClick={() => setIsMobileMenuOpen(true)} className="text-slate-600 hover:text-slate-900 p-1">
+          <Menu size={22} />
+        </button>
+      </div>
 
-  const renderOverviewDashboard = () => {
-    const kpiCards = [
-      {
-        label: "Total Revenue",
-        value: formatCurrency(metrics.revenue),
-        delta: isDemoMode ? metrics.growth : "0.0%",
-        positive: true,
-        icon: DollarSign,
-        spark: [32, 36, 35, 41, 44, 48, 52],
-        color: "#4F46E5",
-      },
-      {
-        label: "MoM Growth",
-        value: isDemoMode ? metrics.growth : "+0.0%",
-        delta: isDemoMode ? "+2.4 pts" : "vs last mo",
-        positive: true,
-        icon: TrendingUp,
-        spark: [10, 12, 11, 14, 15, 17, 18.4],
-        color: "#10B981",
-      },
-      {
-        label: "Total Units",
-        value: metrics.units.toLocaleString(),
-        delta: isDemoMode ? "+11.2%" : "0.0%",
-        positive: true,
-        icon: ShoppingBag,
-        spark: [140, 152, 148, 170, 185, 192, 210],
-        color: "#4F46E5",
-      },
-      {
-        label: "Avg. Order Value",
-        value: formatCurrency(metrics.aov, 2),
-        delta: isDemoMode ? "+4.1%" : "0.0%",
-        positive: true,
-        icon: Zap,
-        spark: [115, 118, 117, 121, 120, 123, 124.5],
-        color: "#4F46E5",
-      },
-      {
-        label: "Avg. CLV",
-        value: formatCurrency(metrics.clv, 0),
-        delta: isDemoMode ? "+6.8%" : "0.0%",
-        positive: true,
-        icon: Users,
-        spark: [580, 595, 602, 610, 622, 635, 642],
-        color: "#10B981",
-      },
-    ];
+      {/* Mobile Overlay */}
+      {isMobileMenuOpen && (
+        <div 
+          className="md:hidden fixed inset-0 bg-slate-900/40 z-40 backdrop-blur-sm transition-opacity"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
 
-    return (
-      <div className="space-y-6">
-        {/* Page Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      {/* Enterprise SaaS Sidebar */}
+      <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-slate-200/80 text-slate-800 p-5 flex flex-col h-full transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} shadow-[1px_0_12px_rgba(0,0,0,0.03)]`}>
+        {/* Brand Header */}
+        <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-100">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 flex items-center justify-center font-extrabold text-white shadow-md shadow-blue-500/25">
+              <Sparkles size={20} className="text-white" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-extrabold text-sm tracking-tight text-slate-900">BIA Platform</span>
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">PRO</span>
+              </div>
+              <p className="text-[10px] text-slate-400 font-medium">All-Rounder Business Agent</p>
+            </div>
+          </div>
+          <button onClick={() => setIsMobileMenuOpen(false)} className="md:hidden text-slate-400 hover:text-slate-700">
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Grouped Sidebar Navigation */}
+        <div className="flex flex-col gap-6 flex-1 overflow-y-auto pr-1">
+          {/* Group 1: Monitoring & KPIs */}
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">
-              Overview Dashboard
-            </h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-              Executive business performance metrics & autonomous agent telemetry.
+            <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 mb-2 px-3">
+              Monitoring & Analytics
             </p>
+            <div className="flex flex-col gap-1">
+              <button 
+                onClick={() => { setActiveTab("dashboard"); setIsMobileMenuOpen(false); }} 
+                className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-semibold text-xs transition-all w-full text-left cursor-pointer ${
+                  activeTab === 'dashboard' 
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25 font-bold' 
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+                }`}
+              >
+                <LayoutDashboard size={17} /> Overview Dashboard
+              </button>
+
+              <button 
+                onClick={() => { setActiveTab("cashflow"); setIsMobileMenuOpen(false); }} 
+                className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-semibold text-xs transition-all w-full text-left cursor-pointer ${
+                  activeTab === 'cashflow' 
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25 font-bold' 
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+                }`}
+              >
+                <DollarSign size={17} /> Cashflow Analytics
+              </button>
+
+              <button 
+                onClick={() => { setActiveTab("inventory"); setIsMobileMenuOpen(false); }} 
+                className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-semibold text-xs transition-all w-full text-left cursor-pointer ${
+                  activeTab === 'inventory' 
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25 font-bold' 
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+                }`}
+              >
+                <Package size={17} /> Inventory Health
+              </button>
+
+              <button 
+                onClick={() => { setActiveTab("insights"); setIsMobileMenuOpen(false); }} 
+                className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-semibold text-xs transition-all w-full text-left cursor-pointer ${
+                  activeTab === 'insights' 
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25 font-bold' 
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+                }`}
+              >
+                <Bell size={17} /> Proactive Insights
+              </button>
+            </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5">
-            {/* Timeframe Selector */}
-            <div className="inline-flex items-center p-1 rounded-lg bg-slate-100 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80">
-              {(["7D", "30D", "90D", "YTD"] as const).map((tf) => (
-                <button
-                  key={tf}
-                  onClick={() => setTimeframe(tf)}
-                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all cursor-pointer ${
-                    timeframe === tf
-                      ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm"
-                      : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                  }`}
-                >
-                  {tf}
-                </button>
-              ))}
-            </div>
+          {/* Group 2: Automation & Tools */}
+          <div>
+            <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 mb-2 px-3">
+              Automations & Tools
+            </p>
+            <div className="flex flex-col gap-1">
+              <button 
+                onClick={() => { setActiveTab("integrations"); setIsMobileMenuOpen(false); }} 
+                className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-semibold text-xs transition-all w-full text-left cursor-pointer ${
+                  activeTab === 'integrations' 
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25 font-bold' 
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+                }`}
+              >
+                <Plug size={17} /> Store Integrations
+              </button>
 
-            {/* Export Report */}
-            <button
-              onClick={() => showToast(`Exported ${timeframe} Executive Report (CSV & PDF).`, "success")}
-              className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-medium rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              <button 
+                onClick={() => { setActiveTab("chat"); setIsMobileMenuOpen(false); }} 
+                className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-semibold text-xs transition-all w-full text-left cursor-pointer ${
+                  activeTab === 'chat' 
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25 font-bold' 
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+                }`}
+              >
+                <MessageSquare size={17} /> AI Copilot Assistant
+              </button>
+
+              <button 
+                onClick={() => { setActiveTab("upload"); setIsMobileMenuOpen(false); }} 
+                className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-semibold text-xs transition-all w-full text-left cursor-pointer ${
+                  activeTab === 'upload' 
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25 font-bold' 
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+                }`}
+              >
+                <UploadCloud size={17} /> Upload Datasets
+              </button>
+            </div>
+          </div>
+
+          {/* Group 3: Organization */}
+          <div>
+            <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 mb-2 px-3">
+              Preferences
+            </p>
+            <div className="flex flex-col gap-1">
+              <button 
+                onClick={() => { setActiveTab("profile"); setIsMobileMenuOpen(false); }} 
+                className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-semibold text-xs transition-all w-full text-left cursor-pointer ${
+                  activeTab === 'profile' 
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25 font-bold' 
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+                }`}
+              >
+                <User size={17} /> Account & Files
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* User Card & Logout Footer */}
+        <div className="pt-4 border-t border-slate-100 mt-auto">
+          <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-sm">
+                {(userProfile?.email || "U").charAt(0).toUpperCase()}
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-slate-900 truncate max-w-[110px]">{userProfile?.email || "User"}</p>
+                <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Active
+                </span>
+              </div>
+            </div>
+            <button 
+              onClick={handleLogout} 
+              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer" 
+              title="Log Out"
             >
-              <Download className="w-3.5 h-3.5 text-slate-500" />
-              Export Report
+              <LogOut size={16} />
             </button>
           </div>
         </div>
+      </div>
 
-        {/* Smart Onboarding / Active Workspace Banner */}
-        {!isDemoMode ? (
-          <div className="relative overflow-hidden rounded-xl border border-slate-800 bg-slate-900 text-white p-6 shadow-sm">
-            <div className="absolute right-0 top-0 -mt-12 -mr-12 w-64 h-64 rounded-full bg-indigo-500/15 blur-3xl pointer-events-none" />
-            <div className="relative flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-              <div className="space-y-3 max-w-2xl">
-                <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-indigo-500/15 border border-indigo-400/25 text-indigo-300 text-[11px] font-medium tracking-wide uppercase">
-                  <Sparkles className="w-3 h-3" />
-                  Business Workspace Ready
-                </div>
-                <h2 className="text-lg sm:text-xl font-semibold tracking-tight text-white">
-                  Connect Your Business Operations to Activate BIA Agent
-                </h2>
-                <p className="text-sm text-slate-300 leading-relaxed">
-                  Link your POS registers, Stripe billing, or upload historical CSV datasets to
-                  unlock real-time cashflow forecasting, stockout alerts, and automated executive briefs.
-                </p>
-
-                {/* 3-Step Checklist */}
-                <div className="flex flex-wrap items-center gap-3 pt-1">
-                  {[
-                    { step: "1", label: "Connect POS or CSV", done: false },
-                    { step: "2", label: "Map Business Schema", done: false },
-                    { step: "3", label: "Activate AI Agent", done: false },
-                  ].map((s) => (
-                    <div
-                      key={s.step}
-                      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800/90 border border-slate-700/80 text-xs text-slate-200"
-                    >
-                      <span className="w-4 h-4 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 flex items-center justify-center text-[10px] font-semibold">
-                        {s.step}
-                      </span>
-                      {s.label}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex flex-wrap lg:flex-col gap-2.5 shrink-0">
-                <button
-                  onClick={() => setIsDemoMode(true)}
-                  className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium transition-colors shadow-sm cursor-pointer"
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  Try Sample Data
-                </button>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setActiveNav("integrations")}
-                    className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg bg-white text-slate-900 hover:bg-slate-100 text-xs font-medium transition-colors cursor-pointer"
-                  >
-                    <Plug className="w-3.5 h-3.5" />
-                    Connect Store & POS
-                  </button>
-                  <button
-                    onClick={() => setActiveNav("upload")}
-                    className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-medium transition-colors cursor-pointer"
-                  >
-                    <UploadCloud className="w-3.5 h-3.5" />
-                    Upload Dataset
-                  </button>
-                </div>
-              </div>
-            </div>
+      <div className="flex-1 bg-gradient-to-br from-slate-50 via-slate-50/90 to-blue-50/30 p-6 pt-24 md:p-10 md:pt-10 overflow-y-auto">
+        {/* Floating Ingest Stream Toast */}
+        {streamToast && (
+          <div className="fixed top-6 right-6 z-50 flex items-center gap-3 px-5 py-3.5 bg-slate-900/95 backdrop-blur-xl text-white rounded-2xl shadow-2xl border border-white/10 animate-in slide-in-from-top-4 duration-300">
+            <Zap size={18} className="text-yellow-400 shrink-0 animate-bounce" />
+            <span className="text-sm font-semibold">{streamToast.message}</span>
+            <button onClick={() => setStreamToast(null)} className="text-gray-400 hover:text-white ml-2">
+              <X size={16} />
+            </button>
           </div>
-        ) : (
-          !onboardingDismissed && (
-            <div className="rounded-xl border border-indigo-200/70 dark:border-indigo-900/50 bg-indigo-50/50 dark:bg-indigo-950/20 px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-indigo-600/10 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
-                  <ShieldCheck className="w-4 h-4" />
-                </div>
-                <div className="text-xs sm:text-sm">
-                  <span className="font-medium text-slate-900 dark:text-white">
-                    Workspace Pipeline Active (3/3 steps complete)
-                  </span>
-                  <span className="text-slate-500 dark:text-slate-400 ml-2 hidden md:inline">
-                    Shopify Plus, Stripe Billing & Google Sheets are streaming live telemetry.
-                  </span>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  onClick={() => setActiveNav("integrations")}
-                  className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline px-2 py-1 cursor-pointer"
-                >
-                  Manage Sources
-                </button>
-                <button
-                  onClick={() => setOnboardingDismissed(true)}
-                  aria-label="Dismiss status banner"
-                  className="p-1 rounded-md text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-800 cursor-pointer"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-          )
         )}
 
-        {/* Top KPI Bento Row */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-          {kpiCards.map((kpi) => {
-            const Icon = kpi.icon;
-            return (
-              <div
-                key={kpi.label}
-                className="group rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 transition-all hover:border-slate-300 dark:hover:border-slate-700"
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                    {kpi.label}
-                  </span>
-                  <div className="w-7 h-7 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700/60 flex items-center justify-center text-slate-500 dark:text-slate-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-                    <Icon className="w-3.5 h-3.5" />
-                  </div>
-                </div>
-
-                <div className="flex items-end justify-between gap-2">
-                  <div>
-                    <div className="text-2xl font-semibold tracking-tight tabular-nums text-slate-900 dark:text-white">
-                      {kpi.value}
-                    </div>
-                    <div className="mt-1.5 flex items-center gap-1">
-                      <span
-                        className={`inline-flex items-center gap-0.5 text-[11px] font-medium px-1.5 py-0.5 rounded-md tabular-nums ${
-                          !isDemoMode
-                            ? "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
-                            : "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
-                        }`}
-                      >
-                        {isDemoMode && <ArrowUpRight className="w-3 h-3" />}
-                        {kpi.delta}
-                      </span>
-                    </div>
-                  </div>
-                  <MicroSparkline data={kpi.spark} color={kpi.color} isEmpty={!isDemoMode} />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* 12-Column Bento Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-          {/* Left (8 Cols): Revenue & Cashflow Velocity Chart */}
-          <div className="lg:col-span-8 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 flex flex-col justify-between">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
-              <div>
-                <h2 className="text-sm font-semibold text-slate-900 dark:text-white">
-                  Revenue & Cashflow Velocity
-                </h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  Comparing gross inflow against operating expenses ({timeframe})
-                </p>
-              </div>
-              <div className="flex items-center gap-4 text-xs">
-                <span className="inline-flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
-                  <span className="w-2.5 h-2.5 rounded-full bg-indigo-600" />
-                  Revenue
-                </span>
-                <span className="inline-flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
-                  <span className="w-2.5 h-2.5 rounded-full bg-slate-400 dark:bg-slate-500" />
-                  Expenses
-                </span>
-              </div>
+        {/* Global BAM Real-Time Control & Alerts Header */}
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-8 pb-5 border-b border-slate-200/90">
+          <div className="flex items-center gap-3">
+            <span className="relative flex h-3 w-3">
+              <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${autoSyncEnabled ? 'bg-emerald-400' : 'bg-gray-400'} opacity-75`}></span>
+              <span className={`relative inline-flex rounded-full h-3 w-3 ${autoSyncEnabled ? 'bg-emerald-500' : 'bg-gray-400'}`}></span>
+            </span>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:gap-2">
+              <span className="text-xs font-extrabold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+                <Activity size={14} className="text-emerald-500" /> AI Agent Live Operations
+              </span>
+              <span className="text-xs text-slate-500 font-medium hidden sm:inline">• Synced {lastSyncTime}</span>
             </div>
-
-            <div className="relative h-[280px] w-full">
-              {!isDemoMode && (
-                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/70 dark:bg-slate-900/70 backdrop-blur-[1px] rounded-lg text-center p-4">
-                  <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 mb-2.5">
-                    <Activity className="w-5 h-5" />
-                  </div>
-                  <p className="text-sm font-medium text-slate-900 dark:text-white">
-                    No cashflow telemetry yet
-                  </p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xs mt-1 mb-3">
-                    Record a transaction or enable sample data to visualize revenue velocity.
-                  </p>
-                  <button
-                    onClick={() => setIsDemoMode(true)}
-                    className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium transition-colors cursor-pointer"
-                  >
-                    Load Demo Telemetry
-                  </button>
-                </div>
-              )}
-
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart
-                  data={metrics.chartData}
-                  margin={{ top: 8, right: 8, left: -16, bottom: 0 }}
-                >
-                  <defs>
-                    <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#4F46E5" stopOpacity={0.18} />
-                      <stop offset="95%" stopColor="#4F46E5" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="expGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#94A3B8" stopOpacity={0.14} />
-                      <stop offset="95%" stopColor="#94A3B8" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    vertical={false}
-                    stroke={darkMode ? "#1E293B" : "#F1F5F9"}
-                  />
-                  <XAxis
-                    dataKey="label"
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fontSize: 11, fill: darkMode ? "#94A3B8" : "#64748B" }}
-                    dy={8}
-                  />
-                  <YAxis
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fontSize: 11, fill: darkMode ? "#94A3B8" : "#64748B" }}
-                    tickFormatter={(v) => (v >= 1000 ? `$${v / 1000}k` : `$${v}`)}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: darkMode ? "#0F172A" : "#FFFFFF",
-                      borderColor: darkMode ? "#1E293B" : "#E2E8F0",
-                      borderRadius: "10px",
-                      fontSize: "12px",
-                      boxShadow: "0 4px 12px rgba(15, 23, 42, 0.08)",
-                    }}
-                    formatter={(value: any, name: any) => [
-                      formatCurrency(Number(value)),
-                      name === "revenue" ? "Revenue" : "Expenses",
-                    ]}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="revenue"
-                    stroke="#4F46E5"
-                    strokeWidth={2}
-                    fillOpacity={1}
-                    fill="url(#revGrad)"
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="expenses"
-                    stroke="#94A3B8"
-                    strokeWidth={1.75}
-                    strokeDasharray="4 4"
-                    fillOpacity={1}
-                    fill="url(#expGrad)"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
+            
+            <button 
+              onClick={() => syncBAMPulse(false)} 
+              className={`text-xs px-2.5 py-1 rounded-full font-bold border transition-all ${autoSyncEnabled ? 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100/70' : 'bg-slate-100 border-slate-200 text-slate-600 hover:bg-slate-200'}`}
+              title="Toggle automatic 12-second live pulse updates"
+            >
+              {autoSyncEnabled ? '● Live Sync: ON' : '○ Sync: PAUSED'}
+            </button>
           </div>
 
-          {/* Right (4 Cols): AI Agent Executive Brief */}
-          <div className="lg:col-span-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 flex flex-col">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
-                  <Sparkles className="w-4 h-4" />
+          <div className="flex items-center gap-3 relative">
+            {/* Live Ingestion Order Pill */}
+            <button
+              onClick={handleSimulateStream}
+              disabled={isSimulatingStream}
+              className="flex items-center gap-2 px-3.5 py-2 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all hover:shadow-md active:scale-95 cursor-pointer disabled:opacity-50"
+              title="Record live customer order in real time"
+            >
+              <Zap size={14} className={isSimulatingStream ? "animate-spin text-yellow-300" : "text-yellow-300"} />
+              {isSimulatingStream ? "Recording..." : "Record Live Transaction"}
+            </button>
+
+            {/* Manual Pulse Refresh */}
+            <button 
+              onClick={() => syncBAMPulse(false)} 
+              disabled={isSyncing}
+              className="p-2 text-slate-600 hover:text-slate-900 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors shadow-sm cursor-pointer"
+              title="Refresh Live Business Metrics"
+            >
+              <RefreshCw size={16} className={isSyncing ? "animate-spin text-blue-500" : ""} />
+            </button>
+
+            {/* Notification Bell with Badge */}
+            <div className="relative">
+              <button 
+                onClick={() => setIsAlertsOpen(!isAlertsOpen)} 
+                className={`relative p-2 rounded-xl border transition-all shadow-sm cursor-pointer ${isAlertsOpen ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50'}`}
+                title="AI Business Alerts & Insights"
+              >
+                <Bell size={17} />
+                {unreadAlertCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[10px] font-extrabold w-4 h-4 rounded-full flex items-center justify-center animate-pulse shadow-sm">
+                    {unreadAlertCount}
+                  </span>
+                )}
+              </button>
+
+              {/* Alerts Dropdown Modal */}
+              {isAlertsOpen && (
+                <div className="absolute right-0 mt-3 w-80 sm:w-96 bg-white/95 backdrop-blur-2xl border border-gray-200 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.15)] p-5 z-50 animate-in fade-in slide-in-from-top-3 duration-200">
+                  <div className="flex items-center justify-between pb-3 mb-3 border-b border-gray-100">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 bg-blue-50 text-blue-600 rounded-lg">
+                        <ShieldAlert size={16} />
+                      </div>
+                      <h4 className="font-extrabold text-gray-900 text-sm">AI Business Alerts</h4>
+                      {unreadAlertCount > 0 && (
+                        <span className="px-2 py-0.5 bg-rose-100 text-rose-700 text-[10px] font-bold rounded-full">
+                          {unreadAlertCount} unread
+                        </span>
+                      )}
+                    </div>
+                    {unreadAlertCount > 0 && (
+                      <button 
+                        onClick={handleMarkAllAlertsRead} 
+                        className="text-xs font-semibold text-blue-600 hover:text-blue-700 transition-colors"
+                      >
+                        Mark all read
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex flex-col gap-2.5 max-h-80 overflow-y-auto pr-1">
+                    {bamAlerts.length === 0 ? (
+                      <div className="p-6 text-center text-gray-400 text-xs">
+                        No active alerts right now. All business operations are running smoothly.
+                      </div>
+                    ) : (
+                      bamAlerts.map((alert: any) => (
+                        <div 
+                          key={alert.id} 
+                          className={`p-3.5 rounded-2xl border transition-all text-left flex gap-3 ${
+                            alert.severity === 'critical' ? 'bg-rose-50/80 border-rose-200/80 text-rose-900' :
+                            alert.severity === 'warning' ? 'bg-amber-50/80 border-amber-200/80 text-amber-900' :
+                            alert.severity === 'success' ? 'bg-emerald-50/80 border-emerald-200/80 text-emerald-900' :
+                            'bg-blue-50/80 border-blue-200/80 text-blue-900'
+                          }`}
+                        >
+                          <div className="shrink-0 mt-0.5">
+                            {alert.severity === 'critical' ? <AlertCircle size={16} className="text-rose-600" /> :
+                             alert.severity === 'warning' ? <AlertTriangle size={16} className="text-amber-600" /> :
+                             alert.severity === 'success' ? <CheckCircle2 size={16} className="text-emerald-600" /> :
+                             <Info size={16} className="text-blue-600" />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-extrabold leading-tight">{alert.title}</p>
+                            <p className="text-[11px] mt-1 text-gray-600 leading-relaxed font-medium">{alert.message}</p>
+                            <span className="text-[10px] text-gray-400 mt-1.5 block">
+                              {new Date(alert.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • {alert.metric_type} trigger
+                            </span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
-                <div>
-                  <h2 className="text-sm font-semibold text-slate-900 dark:text-white">
-                    AI Agent Executive Brief
-                  </h2>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    Proactive actions ranked by ROI
+              )}
+            </div>
+          </div>
+        </div>
+
+        {activeTab === "upload" && (
+          <div className="flex flex-col xl:flex-row gap-8 min-h-[calc(100vh-6rem)] xl:h-[calc(100vh-6rem)] animate-in fade-in duration-500 overflow-y-auto xl:overflow-y-visible pb-8 xl:pb-0">
+            
+            {/* Introduction Side */}
+            <div className="flex-1 bg-gradient-to-br from-blue-700 via-indigo-800 to-purple-900 text-white p-10 lg:p-14 rounded-3xl shadow-2xl flex flex-col justify-center relative overflow-hidden shrink-0 xl:shrink">
+              {/* Animated Abstract background shapes */}
+              <div className="absolute -top-20 -right-20 w-96 h-96 bg-blue-500 rounded-full mix-blend-screen filter blur-[80px] opacity-40 animate-blob"></div>
+              <div className="absolute -bottom-32 -left-20 w-96 h-96 bg-purple-500 rounded-full mix-blend-screen filter blur-[80px] opacity-40 animate-blob animation-delay-4000"></div>
+              
+              <div className="absolute top-10 right-10 opacity-10 transform translate-x-1/4 -translate-y-1/4 animate-pulse">
+                <Database size={300} />
+              </div>
+              
+              <div className="relative z-10 max-w-2xl bg-white/5 backdrop-blur-md p-8 rounded-2xl border border-white/10 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
+                <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/10 backdrop-blur-md border border-white/20 rounded-full text-blue-50 text-xs font-semibold mb-6 shadow-sm">
+                  <Sparkles size={14} className="text-blue-200" /> All-Rounder AI Business Agent
+                </div>
+                
+                <h1 className="text-3xl lg:text-4xl font-extrabold mb-4 leading-snug tracking-tight">
+                  Your Autonomous AI Business Agent & <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-200 to-cyan-200">Growth OS</span>
+                </h1>
+                
+                <p className="text-blue-100/90 text-base mb-8 leading-relaxed font-medium">
+                  Upload your sales, store, or inventory data. Your autonomous AI agent continuously monitors cashflow, optimizes stock levels, detects hidden growth opportunities, and provides strategic execution advice.
+                </p>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  <div className="flex items-start gap-4">
+                    <div className="bg-white/10 backdrop-blur-sm p-3 rounded-xl border border-white/10 shadow-sm">
+                      <TrendingUp size={20} className="text-blue-100" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-white text-base mb-1">Instant Dashboards</h3>
+                      <p className="text-xs text-blue-200/80 leading-relaxed">Watch your KPIs and revenue trends populate in real-time.</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-4">
+                    <div className="bg-white/10 backdrop-blur-sm p-3 rounded-xl border border-white/10 shadow-sm">
+                      <MessageSquare size={20} className="text-blue-100" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-white text-base mb-1">AI Data Assistant</h3>
+                      <p className="text-xs text-blue-200/80 leading-relaxed">Chat naturally with your data to uncover hidden insights.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Upload Side */}
+            <div className="xl:w-[450px] bg-white/80 backdrop-blur-xl p-10 rounded-3xl shadow-2xl border border-white flex flex-col items-center justify-center text-center relative hover:shadow-[0_20px_50px_rgba(8,112,184,0.15)] transition-all duration-500">
+              <div className="w-20 h-20 bg-gradient-to-tr from-blue-100 to-purple-100 text-blue-600 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-blue-500/20 group hover:scale-110 transition-transform duration-300">
+                <UploadCloud size={36} className="animate-bounce" />
+              </div>
+              <h2 className="text-3xl font-extrabold mb-2 text-transparent bg-clip-text bg-gradient-to-r from-blue-700 to-indigo-800 tracking-tight">Upload Dataset</h2>
+              <p className="text-gray-500 mb-8 text-sm font-medium">Drag and drop your <strong className="text-indigo-600">.csv, .pdf, or .txt</strong> file to begin</p>
+              
+              <div className="w-full relative group">
+                <input 
+                  id="dataset-upload"
+                  type="file" 
+                  accept=".csv,.pdf,.txt" 
+                  onChange={handleFileChange} 
+                  disabled={loading}
+                  className={`absolute inset-0 w-full h-full opacity-0 z-10 ${loading ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                />
+                <div className={`border-2 border-dashed rounded-2xl p-10 transition-all duration-200 ease-in-out ${
+                  loading ? 'border-gray-300 bg-gray-100 opacity-70' :
+                  file ? 'border-blue-500 bg-blue-50/50 shadow-sm' : 
+                  'border-gray-200 bg-gray-50 group-hover:border-blue-400 group-hover:bg-blue-50/30'
+                }`}>
+                  {file ? (
+                    <div className="flex flex-col items-center animate-in zoom-in-95 duration-200">
+                      <div className="bg-white p-3 rounded-xl shadow-sm mb-4">
+                        <FileText size={32} className="text-blue-600" />
+                      </div>
+                      <p className="font-bold text-gray-800 truncate max-w-[250px] text-lg">{file.name}</p>
+                      <p className="text-sm font-medium text-blue-600 mt-2">Ready to process</p>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center text-gray-500">
+                      <div className="bg-white p-4 rounded-full shadow-sm mb-4 group-hover:scale-110 transition-transform duration-200">
+                        <UploadCloud size={28} className="text-gray-400 group-hover:text-blue-500 transition-colors" />
+                      </div>
+                      <p className="font-semibold text-gray-700 text-lg mb-1">Select a file</p>
+                      <p className="text-sm mt-1">Upload Data (CSV) or Documents (PDF, TXT)</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {uploadError && (
+                <div className="mt-6 p-4 bg-red-50 text-red-700 text-sm font-medium rounded-xl flex items-start gap-3 w-full text-left animate-in slide-in-from-top-2 border border-red-100">
+                  <AlertTriangle size={18} className="shrink-0 mt-0.5" />
+                  <p className="leading-relaxed">{uploadError}</p>
+                </div>
+              )}
+
+              <button 
+                onClick={handleUpload} 
+                disabled={loading || !file} 
+                className={`mt-10 w-full py-4 rounded-xl font-bold text-white text-lg transition-all duration-200 ${
+                  loading || !file 
+                    ? "bg-gray-200 text-gray-400 cursor-not-allowed" 
+                    : "bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-600/30 hover:shadow-blue-600/40 hover:-translate-y-0.5 active:translate-y-0"
+                }`}
+              >
+                {loading ? (
+                  <span className="flex items-center justify-center gap-3">
+                    <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    Extracting Data...
+                  </span>
+                ) : (
+                  "Process Pipeline"
+                )}
+              </button>
+            </div>
+            
+          </div>
+        )}
+
+        {activeTab === "dashboard" && overviewData && (
+          <div className="animate-in fade-in duration-500">
+            <div className="flex items-center justify-between mb-8">
+              <div>
+                <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">Overview Dashboard</h2>
+                <p className="text-slate-500 mt-1 font-medium">Your high-level business performance metrics.</p>
+              </div>
+              <button onClick={handleExportReport} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 hover:text-slate-900 hover:bg-slate-50 transition-colors shadow-sm cursor-pointer">
+                <FileText size={16} /> Export Report
+              </button>
+            </div>
+
+            {/* Quick Start / Store Setup Banner when no data */}
+            {((overviewData?.revenue_trend || []).length === 0 && (processedInventoryData || []).length === 0) && (
+              <div className="mb-8 p-7 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white rounded-3xl shadow-xl shadow-blue-500/15 border border-blue-400/30 flex flex-col md:flex-row items-center justify-between gap-5 animate-in fade-in duration-500">
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 rounded-2xl bg-white/20 border border-white/30 text-white flex items-center justify-center shrink-0 shadow-lg backdrop-blur-md">
+                    <Sparkles size={28} />
+                  </div>
+                  <div>
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/20 text-white border border-white/30 text-[10px] font-bold uppercase tracking-wider mb-1 backdrop-blur-md">
+                      Business Workspace Ready
+                    </div>
+                    <h3 className="text-xl font-extrabold text-white">Connect Your Business Operations</h3>
+                    <p className="text-xs text-blue-50 mt-1 max-w-xl leading-relaxed">
+                      Connect your sales registers, sync your Google Sheets, or upload your transaction files to activate real-time analytics, live monitoring, and AI executive recommendations.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2.5 shrink-0 w-full md:w-auto">
+                  <button
+                    onClick={() => setActiveTab("integrations")}
+                    className="flex-1 md:flex-initial flex items-center justify-center gap-2 px-5 py-3 bg-white hover:bg-blue-50 text-blue-700 font-extrabold rounded-2xl text-xs shadow-lg shadow-black/10 transition-all cursor-pointer"
+                  >
+                    <Plug size={14} /> Connect Store & POS
+                  </button>
+                  <button
+                    onClick={() => setActiveTab("upload")}
+                    className="flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-3 bg-white/15 hover:bg-white/25 text-white border border-white/30 font-bold rounded-2xl text-xs backdrop-blur-md transition-all cursor-pointer"
+                  >
+                    <UploadCloud size={14} /> Upload Dataset
+                  </button>
+                </div>
+              </div>
+            )}
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-5 mb-8">
+              <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100/50 relative overflow-hidden group hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                  <DollarSign size={48} />
+                </div>
+                <div className="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center mb-4">
+                  <DollarSign size={20} className="text-green-600" />
+                </div>
+                <p className="text-gray-500 font-medium mb-1 text-sm">Total Revenue</p>
+                <p className="text-3xl font-extrabold text-gray-900" title={String(overviewData?.kpis?.total_revenue ?? 0)}>
+                  ${formatCompact(overviewData?.kpis?.total_revenue ?? 0)}
+                </p>
+              </div>
+              
+              <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100/50 relative overflow-hidden group hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                  <TrendingUp size={48} />
+                </div>
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-4 ${(overviewData?.kpis?.mom_growth ?? 0) >= 0 ? 'bg-emerald-50' : 'bg-red-50'}`}>
+                  <TrendingUp size={20} className={(overviewData?.kpis?.mom_growth ?? 0) >= 0 ? 'text-emerald-600' : 'text-red-600'} />
+                </div>
+                <p className="text-gray-500 font-medium mb-1 text-sm">MoM Growth</p>
+                <div className="flex flex-wrap items-baseline gap-2">
+                  <p className="text-3xl font-extrabold text-gray-900">
+                    {(overviewData?.kpis?.mom_growth ?? 0) >= 0 ? '+' : ''}{overviewData?.kpis?.mom_growth ?? 0}%
+                  </p>
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${(overviewData?.kpis?.mom_growth ?? 0) >= 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                    vs last mo
+                  </span>
+                </div>
+              </div>
+              
+              <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100/50 relative overflow-hidden group hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                  <Package size={48} />
+                </div>
+                <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center mb-4">
+                  <Package size={20} className="text-blue-600" />
+                </div>
+                <p className="text-gray-500 font-medium mb-1 text-sm">Total Units</p>
+                <p className="text-3xl font-extrabold text-gray-900" title={String(totalUnitsSold)}>
+                  {formatCompact(totalUnitsSold)}
+                </p>
+              </div>
+              
+              <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100/50 relative overflow-hidden group hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                  <Sparkles size={48} />
+                </div>
+                <div className="w-10 h-10 rounded-full bg-purple-50 flex items-center justify-center mb-4">
+                  <Sparkles size={20} className="text-purple-600" />
+                </div>
+                <p className="text-gray-500 font-medium mb-1 text-sm">Avg. Order Value</p>
+                <p className="text-3xl font-extrabold text-gray-900" title={String(avgUnitValue)}>
+                  ${formatCompact(avgUnitValue)}
+                </p>
+              </div>
+              
+              <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100/50 relative overflow-hidden group hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                  <Database size={48} />
+                </div>
+                <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center mb-4">
+                  <Database size={20} className="text-indigo-600" />
+                </div>
+                <p className="text-gray-500 font-medium mb-1 text-sm">Avg. CLV</p>
+                <p className="text-3xl font-extrabold text-gray-900" title={String(overviewData?.kpis?.clv ?? 0)}>
+                  ${formatCompact(overviewData?.kpis?.clv ?? 0)}
+                </p>
+              </div>
+            </div>
+
+            {/* BAM Feature 5: Executive Health Scorecards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+              {/* Target vs Actual Revenue Scorecard */}
+              <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-bold uppercase tracking-wider text-gray-500">Target vs Actual</span>
+                  <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
+                    bamScorecards?.target_scorecard?.color === 'emerald' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                    bamScorecards?.target_scorecard?.color === 'amber' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                    bamScorecards?.target_scorecard?.color === 'rose' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
+                    'bg-slate-50 text-slate-600 border border-slate-200'
+                  }`}>
+                    {bamScorecards?.target_scorecard?.percentage ?? 0}% of Goal
+                  </span>
+                </div>
+                <div className="flex items-baseline justify-between mb-2">
+                  <h4 className="text-2xl font-extrabold text-gray-900">
+                    ${formatCompact(overviewData?.kpis?.total_revenue ?? 0)}
+                  </h4>
+                  <span className="text-xs text-gray-400 font-semibold">
+                    Target: ${formatCompact(bamScorecards?.target_scorecard?.target || 50000)}
+                  </span>
+                </div>
+                <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
+                  <div 
+                    className="bg-gradient-to-r from-blue-600 to-indigo-600 h-2.5 rounded-full transition-all duration-1000"
+                    style={{ width: `${Math.min(100, bamScorecards?.target_scorecard?.percentage ?? 0)}%` }}
+                  ></div>
+                </div>
+                <p className="text-[11px] text-gray-500 mt-2.5 flex items-center gap-1 font-medium">
+                  <CheckCircle2 size={13} className="text-emerald-500" /> Operational target calibrated to monthly velocity
+                </p>
+              </div>
+
+              {/* Inventory Risk Index Scorecard */}
+              <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-bold uppercase tracking-wider text-gray-500">Inventory Health Index</span>
+                  <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
+                    bamScorecards?.inventory_scorecard?.color === 'emerald' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                    bamScorecards?.inventory_scorecard?.color === 'amber' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                    bamScorecards?.inventory_scorecard?.color === 'rose' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
+                    'bg-slate-50 text-slate-600 border border-slate-200'
+                  }`}>
+                    {bamScorecards?.inventory_scorecard?.label || "No Data"}
+                  </span>
+                </div>
+                <div className="flex items-baseline justify-between mb-2">
+                  <h4 className="text-2xl font-extrabold text-gray-900">
+                    {bamScorecards?.inventory_scorecard?.score ?? 0}<span className="text-sm text-gray-400 font-medium">/100</span>
+                  </h4>
+                  <span className="text-xs text-gray-400 font-semibold">
+                    {bamScorecards?.inventory_scorecard?.low_stock_count || 0} Low Stock
+                  </span>
+                </div>
+                <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
+                  <div 
+                    className={`h-2.5 rounded-full transition-all duration-1000 ${
+                      bamScorecards?.inventory_scorecard?.color === 'rose' ? 'bg-rose-500' :
+                      bamScorecards?.inventory_scorecard?.color === 'amber' ? 'bg-amber-500' :
+                      bamScorecards?.inventory_scorecard?.color === 'emerald' ? 'bg-emerald-500' :
+                      'bg-slate-300'
+                    }`}
+                    style={{ width: `${bamScorecards?.inventory_scorecard?.score ?? 0}%` }}
+                  ></div>
+                </div>
+                <p className="text-[11px] text-gray-500 mt-2.5 flex items-center gap-1 font-medium">
+                  <ShieldAlert size={13} className="text-blue-500" /> Automated replenishment threshold monitoring
+                </p>
+              </div>
+
+              {/* Stream Velocity Scorecard */}
+              <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-bold uppercase tracking-wider text-gray-500">Live Business Velocity</span>
+                  <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 flex items-center gap-1">
+                    <Activity size={12} className="text-blue-500" /> Live Feed
+                  </span>
+                </div>
+                <div className="flex items-baseline justify-between mb-2">
+                  <h4 className="text-2xl font-extrabold text-gray-900">
+                    {(bamLive?.total_transactions !== undefined ? bamLive.total_transactions : totalUnitsSold) || 0} <span className="text-sm text-gray-400 font-medium">Events</span>
+                  </h4>
+                  <span className="text-xs text-gray-400 font-semibold">
+                    ~{bamLive?.recent_velocity_per_day !== undefined && bamLive.recent_velocity_per_day !== null ? bamLive.recent_velocity_per_day : 0}/day velocity
+                  </span>
+                </div>
+                <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
+                  <div 
+                    className="bg-blue-500 h-2.5 rounded-full transition-all duration-500"
+                    style={{ width: `${(bamLive?.total_transactions || 0) > 0 ? 70 : 0}%` }}
+                  ></div>
+                </div>
+                <p className="text-[11px] text-gray-500 mt-2.5 flex items-center gap-1 font-medium">
+                  <Zap size={13} className="text-yellow-500" /> Connected to Webhooks & CSV pipeline
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* Line Chart Container */}
+              <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100/50 h-[450px] flex flex-col hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+                <div className="mb-6 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-900">Daily Revenue Spikes</h3>
+                    <p className="text-sm text-gray-500">Revenue trajectory over time</p>
+                  </div>
+                </div>
+                {(overviewData?.revenue_trend || []).length > 0 && Number(overviewData?.kpis?.total_revenue || 0) > 0 ? (
+                  <div className="flex-1 w-full min-h-0 overflow-x-auto overflow-y-hidden">
+                    <div className="w-full h-full outline-none focus:outline-none select-none">
+                      <ResponsiveContainer width="100%" height="100%" className="outline-none focus:outline-none">
+                        <LineChart data={overviewData?.revenue_trend || []} margin={{ top: 10, right: 20, left: 0, bottom: 20 }} style={{ outline: 'none' }}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                          <XAxis dataKey="date" stroke="#9ca3af" axisLine={false} tickLine={false} />
+                          <YAxis 
+                            stroke="#9ca3af" 
+                            axisLine={false} 
+                            tickLine={false} 
+                            tickFormatter={(value) => `$${formatCompact(value)}`}
+                          />
+                          <Tooltip 
+                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                            formatter={(value: any) => [`$${value.toLocaleString()}`, 'Revenue']}
+                          />
+                          <Line type="monotone" dataKey="revenue" stroke="#3b82f6" strokeWidth={4} dot={false} activeDot={{ r: 6, fill: '#2563eb' }} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex-1 flex flex-col items-center justify-center text-center p-6 border-2 border-dashed border-slate-200/90 rounded-2xl bg-slate-50/60">
+                    <div className="w-14 h-14 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center mb-3 shadow-sm">
+                      <TrendingUp size={26} />
+                    </div>
+                    <h4 className="text-sm font-bold text-slate-800 mb-1">Awaiting Sales Transactions</h4>
+                    <p className="text-xs text-slate-500 max-w-xs mb-4">
+                      Daily revenue trajectory will plot here automatically as customer orders arrive.
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <button 
+                        onClick={() => setActiveTab("integrations")}
+                        className="px-3.5 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Plug size={13} />
+                        Connect Store
+                      </button>
+                      <button 
+                        onClick={() => setActiveTab("upload")}
+                        className="px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5"
+                      >
+                        <UploadCloud size={13} />
+                        Upload CSV
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+             {/* Bar Chart Container */}
+              <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100/50 h-[450px] flex flex-col hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+                <div className="mb-6 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-900">Units Sold by Category</h3>
+                    <p className="text-sm text-gray-500">Click any bar to drill down into root causes</p>
+                  </div>
+                  <span className="text-[11px] font-bold px-2.5 py-1 bg-blue-50 text-blue-600 rounded-lg flex items-center gap-1">
+                    <Sliders size={12} /> Clickable
+                  </span>
+                </div>
+                {(processedInventoryData || []).length > 0 && processedInventoryData.some((item: any) => Number(item?.sold || 0) > 0) ? (
+                  <div className="flex-1 w-full min-h-0 overflow-x-auto overflow-y-hidden">
+                    <div className="w-full h-full outline-none focus:outline-none select-none">
+                      <ResponsiveContainer width="100%" height="100%" className="outline-none focus:outline-none">
+                        <BarChart 
+                          data={processedInventoryData} 
+                          margin={{ top: 10, right: 20, left: 0, bottom: 60 }} 
+                          style={{ outline: 'none' }}
+                          onClick={(entry: any) => {
+                            if (entry?.activeLabel) handleOpenDrilldown(entry.activeLabel);
+                          }}
+                          className="cursor-pointer"
+                        >
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                          <XAxis 
+                            dataKey="category" 
+                            stroke="#9ca3af" 
+                            interval={0} 
+                            angle={-45} 
+                            textAnchor="end" 
+                            height={60}
+                            axisLine={false}
+                            tickLine={false}
+                            tick={{ fontSize: 12, fill: '#6b7280' }}
+                          />
+                          <YAxis stroke="#9ca3af" axisLine={false} tickLine={false} />
+                          <Tooltip 
+                            cursor={{ fill: '#eff6ff' }}
+                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                          />
+                          <Bar dataKey="sold" fill="#3b82f6" radius={[6, 6, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex-1 flex flex-col items-center justify-center text-center p-6 border-2 border-dashed border-slate-200/90 rounded-2xl bg-slate-50/60">
+                    <div className="w-14 h-14 rounded-2xl bg-purple-100 text-purple-600 flex items-center justify-center mb-3 shadow-sm">
+                      <Layers size={26} />
+                    </div>
+                    <h4 className="text-sm font-bold text-slate-800 mb-1">No Category Sales Yet</h4>
+                    <p className="text-xs text-slate-500 max-w-xs mb-4">
+                      Units sold by product category will show here once orders or catalog items are recorded.
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <button 
+                        onClick={() => setActiveTab("upload")}
+                        className="px-3.5 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <UploadCloud size={13} />
+                        Upload Inventory CSV
+                      </button>
+                      <button 
+                        onClick={() => setActiveTab("integrations")}
+                        className="px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5"
+                      >
+                        <Plug size={13} />
+                        Connect POS
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* BAM Feature 4 & 5: Category Revenue Donut Chart & Live Stream Ticker */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8">
+              {/* Category Revenue Distribution Donut Chart */}
+              <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100/50 h-[450px] flex flex-col hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+                <div className="mb-4 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-900">Revenue by Category (Donut)</h3>
+                    <p className="text-sm text-gray-500">Revenue distribution by category — click any segment to investigate</p>
+                  </div>
+                  <button 
+                    onClick={() => handleOpenDrilldown("all")}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    <Eye size={13} /> Drill Down All
+                  </button>
+                </div>
+                <div className="flex-1 w-full min-h-0 flex items-center justify-center">
+                  {(bamScorecards?.category_distribution || []).length > 0 && bamScorecards.category_distribution.some((item: any) => Number(item?.value || 0) > 0) ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={bamScorecards.category_distribution}
+                          dataKey="value"
+                          nameKey="name"
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={65}
+                          outerRadius={95}
+                          paddingAngle={3}
+                          onClick={(entry) => handleOpenDrilldown(entry?.name)}
+                          className="cursor-pointer outline-none focus:outline-none"
+                        >
+                          {bamScorecards.category_distribution.map((entry: any, index: number) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip 
+                          formatter={(value: any) => [`$${Number(value).toLocaleString()}`, 'Revenue']}
+                          contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                        />
+                        <Legend verticalAlign="bottom" height={36} iconType="circle" />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center text-center p-6 border-2 border-dashed border-slate-200/90 rounded-2xl bg-slate-50/60">
+                      <div className="w-14 h-14 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center mb-3 shadow-sm">
+                        <Package size={26} />
+                      </div>
+                      <h4 className="text-sm font-bold text-slate-800 mb-1">Product Distribution Pending</h4>
+                      <p className="text-xs text-slate-500 max-w-xs mb-4">
+                        Share of revenue per product family will display here in an interactive donut breakdown.
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <button 
+                          onClick={() => setActiveTab("upload")}
+                          className="px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <UploadCloud size={13} />
+                          Import Products CSV
+                        </button>
+                        <button 
+                          onClick={() => setActiveTab("integrations")}
+                          className="px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5"
+                        >
+                          <Plug size={13} />
+                          Connect Catalog
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* BAM Real-Time Inbound Event Feed */}
+              <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100/50 h-[450px] flex flex-col hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+                <div className="mb-4 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl">
+                      <Activity size={18} />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-gray-900">Live Sales & Orders Feed</h3>
+                      <p className="text-sm text-gray-500">Real-time customer transactions processed by your business agent</p>
+                    </div>
+                  </div>
+                  <span className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-full">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span> Live
+                  </span>
+                </div>
+                
+                <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+                  {(bamLive?.live_stream || []).length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center text-center p-6 border-2 border-dashed border-slate-200/90 rounded-2xl bg-slate-50/60">
+                      <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center mb-2 shadow-sm">
+                        <Activity size={22} />
+                      </div>
+                      <h4 className="text-xs font-bold text-slate-800 mb-1">Awaiting Inbound Transactions</h4>
+                      <p className="text-[11px] text-slate-500 max-w-xs mb-3">
+                        Orders synced from Shopify, WooCommerce, or API will appear in real time.
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <button 
+                          onClick={handleSimulateStream}
+                          disabled={isSimulatingStream}
+                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                        >
+                          <Zap size={12} className="text-yellow-300" />
+                          {isSimulatingStream ? "Recording Sale..." : "Record Live Transaction"}
+                        </button>
+                        <button 
+                          onClick={() => setActiveTab("integrations")}
+                          className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-1"
+                        >
+                          <Plug size={12} />
+                          Connect Feed
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    bamLive.live_stream.slice(0, 7).map((item: any) => (
+                      <div 
+                        key={item.id} 
+                        onClick={() => handleOpenDrilldown(item.category)}
+                        className="p-3 bg-gray-50/80 hover:bg-blue-50/60 rounded-2xl border border-gray-100 hover:border-blue-200 transition-all cursor-pointer flex items-center justify-between"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs">
+                            ${Math.round(item.amount / 1000)}k
+                          </div>
+                          <div>
+                            <p className="text-xs font-extrabold text-gray-900">{item.category} • SKU: {item.product_sku}</p>
+                            <p className="text-[11px] text-gray-500">{item.date} • Source: <span className="text-blue-600 font-semibold">{item.source}</span></p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs font-extrabold text-gray-900">${item.amount.toLocaleString()}</p>
+                          <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-0.5 justify-end">
+                            <ArrowUpRight size={10} /> Verified
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "cashflow" && cashflowData && (
+          <div className="flex flex-col gap-8 animate-in fade-in duration-500">
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">Cashflow Analytics</h2>
+                <p className="text-slate-500 mt-1 font-medium">Deep dive into your financial health and growth.</p>
+              </div>
+            </div>
+            
+            <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100/50 h-[450px] flex flex-col hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+              <h3 className="text-xl font-bold text-gray-900 mb-6">Cumulative Business Growth</h3>
+              {cumulativeCashflow.length > 0 && cumulativeCashflow.some((item: any) => Number(item.balance) !== 0) ? (
+                <div className="flex-1 w-full min-h-0 overflow-x-auto overflow-y-hidden">
+                    <div className="w-full h-full outline-none focus:outline-none select-none">
+                      <ResponsiveContainer width="100%" height="100%" className="outline-none focus:outline-none">
+                        <AreaChart data={cumulativeCashflow} margin={{ top: 10, right: 10, left: 0, bottom: 20 }} style={{ outline: 'none' }}>
+                        <defs>
+                          <linearGradient id="colorBalance" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                            <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                        <XAxis dataKey="date" stroke="#9ca3af" axisLine={false} tickLine={false} />
+                        <YAxis stroke="#9ca3af" axisLine={false} tickLine={false} tickFormatter={(value) => `$${formatCompact(value)}`} />
+                        <Tooltip 
+                          contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                          itemStyle={{ color: '#1f2937', fontWeight: 'bold' }}
+                        />
+                        <Area type="monotone" dataKey="balance" stroke="#10b981" strokeWidth={4} fillOpacity={1} fill="url(#colorBalance)" />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex-1 flex flex-col items-center justify-center text-center p-6 border-2 border-dashed border-slate-200/90 rounded-2xl bg-slate-50/60">
+                  <div className="w-14 h-14 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center mb-3 shadow-sm">
+                    <TrendingUp size={26} />
+                  </div>
+                  <h4 className="text-sm font-bold text-slate-800 mb-1">Awaiting Cashflow Data</h4>
+                  <p className="text-xs text-slate-500 max-w-xs mb-4">
+                    Cumulative business cash balance trajectory will plot here as income and expense events are recorded.
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={() => setActiveTab("integrations")}
+                      className="px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <DollarSign size={13} />
+                      Record Quick Sale
+                    </button>
+                    <button 
+                      onClick={() => setActiveTab("upload")}
+                      className="px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5"
+                    >
+                      <UploadCloud size={13} />
+                      Import Cashflow CSV
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+              <h3 className="text-xl font-bold text-gray-900 mb-6">Detailed Financial Metrics</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="p-6 bg-gradient-to-br from-emerald-50 to-emerald-100/50 rounded-2xl border border-emerald-100 shadow-sm">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="p-2 bg-emerald-100 text-emerald-600 rounded-lg"><DollarSign size={18} /></div>
+                    <p className="text-sm text-emerald-800 font-semibold">Operating Cash Flow</p>
+                  </div>
+                  <p className="text-2xl font-extrabold text-emerald-900 truncate" title={String(cashflowData.financial_metrics.operating_cash_flow ?? "N/A")}>
+                    {cashflowData.financial_metrics.operating_cash_flow !== null ? "$" + formatCompact(cashflowData.financial_metrics.operating_cash_flow) : "N/A"}
+                  </p>
+                </div>
+                <div className="p-6 bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-2xl border border-blue-100 shadow-sm">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="p-2 bg-blue-100 text-blue-600 rounded-lg"><TrendingUp size={18} /></div>
+                    <p className="text-sm text-blue-800 font-semibold">Gross Margin</p>
+                  </div>
+                  <p className="text-2xl font-extrabold text-blue-900 truncate" title={String(cashflowData.financial_metrics.gross_margin ?? "Requires Cost Data")}>
+                    {cashflowData.financial_metrics.gross_margin !== null ? `${cashflowData.financial_metrics.gross_margin}%` : "Requires Cost Data"}
+                  </p>
+                </div>
+                <div className="p-6 bg-gradient-to-br from-purple-50 to-purple-100/50 rounded-2xl border border-purple-100 shadow-sm">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="p-2 bg-purple-100 text-purple-600 rounded-lg"><Sparkles size={18} /></div>
+                    <p className="text-sm text-purple-800 font-semibold">Net Margin</p>
+                  </div>
+                  <p className="text-2xl font-extrabold text-purple-900 truncate" title={String(cashflowData.financial_metrics.net_margin ?? "Requires Profit Data")}>
+                    {cashflowData.financial_metrics.net_margin !== null ? `${cashflowData.financial_metrics.net_margin}%` : "Requires Profit Data"}
+                  </p>
+                </div>
+                <div className="p-6 bg-gradient-to-br from-gray-50 to-gray-100/50 rounded-2xl border border-gray-200 shadow-sm">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="p-2 bg-gray-200 text-gray-600 rounded-lg"><AlertTriangle size={18} /></div>
+                    <p className="text-sm text-gray-700 font-semibold">Cash Burn Rate</p>
+                  </div>
+                  <p className="text-2xl font-extrabold text-gray-900 truncate" title={String(cashflowData.financial_metrics.burn_rate)}>
+                    ${formatCompact(cashflowData.financial_metrics.burn_rate)} <span className="text-base font-medium text-gray-500">/mo</span>
                   </p>
                 </div>
               </div>
-              {isDemoMode && (
-                <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 tabular-nums">
-                  {unreadInsightsCount} pending
-                </span>
-              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === "inventory" && (
+          <div className="flex flex-col gap-8 animate-in fade-in duration-500">
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">Inventory Intelligence</h2>
+                <p className="text-slate-500 mt-1 font-medium">Real-time stock tracking and portfolio health.</p>
+              </div>
+            </div>
+            
+            {inventoryMetrics && (
+              <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+                <h3 className="text-xl font-bold text-gray-900 mb-6">Portfolio Health</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  <div className="p-6 bg-gray-50 rounded-2xl border border-gray-100 hover:shadow-sm transition-shadow">
+                    <p className="text-sm text-gray-500 font-medium mb-1">Total Stock Value</p>
+                    <p className="text-2xl font-extrabold text-blue-600 truncate" title={String(inventoryMetrics.total_stock_value)}>
+                      ${formatCompact(inventoryMetrics.total_stock_value)}
+                    </p>
+                  </div>
+                  <div className="p-6 bg-gray-50 rounded-2xl border border-gray-100 hover:shadow-sm transition-shadow">
+                    <p className="text-sm text-gray-500 font-medium mb-1">Turnover Ratio</p>
+                    <p className="text-2xl font-extrabold text-purple-600 truncate" title={String(inventoryMetrics.stock_turnover_ratio)}>
+                      {inventoryMetrics.stock_turnover_ratio}x
+                    </p>
+                  </div>
+                  <div className="p-6 bg-gray-50 rounded-2xl border border-gray-100 hover:shadow-sm transition-shadow">
+                    <p className="text-sm text-gray-500 font-medium mb-1">Stockout Rate</p>
+                    <p className="text-2xl font-extrabold text-red-600 truncate" title={String(inventoryMetrics.stockout_rate)}>
+                      {inventoryMetrics.stockout_rate}%
+                    </p>
+                  </div>
+                  <div className="p-6 bg-gray-50 rounded-2xl border border-gray-100 hover:shadow-sm transition-shadow">
+                    <p className="text-sm text-gray-500 font-medium mb-1">Carrying Cost (Est.)</p>
+                    <p className="text-2xl font-extrabold text-amber-600 truncate" title={String(inventoryMetrics.carrying_cost)}>
+                      ${formatCompact(inventoryMetrics.carrying_cost)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+              <div className="mb-6 flex justify-between items-center">
+                <h3 className="text-xl font-bold text-gray-900">Stock Tracking</h3>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                  <input 
+                    type="text" 
+                    placeholder="Search categories..." 
+                    value={inventorySearch}
+                    onChange={(e) => setInventorySearch(e.target.value)}
+                    className="pl-9 pr-4 py-2 border border-gray-200 rounded-xl text-sm text-gray-900 bg-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm" 
+                  />
+                </div>
+              </div>
+              <div className="overflow-x-auto rounded-xl border border-gray-200">
+                <table className="w-full text-left border-collapse bg-white whitespace-nowrap">
+                  <thead>
+                    <tr className="border-b border-gray-200 bg-gray-50">
+                      <th className="p-4 font-semibold text-gray-600 text-sm uppercase tracking-wider">Category</th>
+                      <th className="p-4 font-semibold text-gray-600 text-sm uppercase tracking-wider">Units Sold</th>
+                      <th className="p-4 font-semibold text-gray-600 text-sm uppercase tracking-wider">Remaining</th>
+                      <th className="p-4 font-semibold text-gray-600 text-sm uppercase tracking-wider">Sell-through</th>
+                      <th className="p-4 font-semibold text-gray-600 text-sm uppercase tracking-wider">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {inventoryData.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="py-12 px-4 text-center">
+                          <div className="flex flex-col items-center justify-center">
+                            <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mb-2">
+                              <Package size={24} />
+                            </div>
+                            <p className="text-sm font-bold text-slate-700">No Inventory Records Yet</p>
+                            <p className="text-xs text-slate-400 max-w-xs mt-1 mb-3">
+                              Upload your product catalog CSV or sync your store to monitor category stock levels and automated replenishment thresholds.
+                            </p>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => setActiveTab("upload")}
+                                className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+                              >
+                                <UploadCloud size={13} />
+                                Upload Catalog CSV
+                              </button>
+                              <button
+                                onClick={() => setActiveTab("integrations")}
+                                className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5"
+                              >
+                                <Plug size={13} />
+                                Connect POS
+                              </button>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      inventoryData.filter(item => item.category.toLowerCase().includes(inventorySearch.toLowerCase())).map((item, idx) => (
+                        <tr key={idx} className="hover:bg-blue-50/50 transition-colors">
+                          <td className="p-4 text-gray-900 font-medium">{item.category}</td>
+                          <td className="p-4 text-gray-600">{item.sold}</td>
+                          <td className="p-4 font-bold text-gray-900">{item.remaining}</td>
+                          <td className="p-4 text-gray-600">
+                            <div className="flex items-center gap-2">
+                              <span>{item.sell_through_rate}%</span>
+                              <div className="w-16 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                <div className="h-full bg-blue-500 rounded-full" style={{ width: `${Math.min(item.sell_through_rate, 100)}%` }} />
+                              </div>
+                            </div>
+                          </td>
+                          <td className="p-4">
+                            <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${item.status === 'Low Stock' ? 'bg-red-100 text-red-700' : item.status === 'Out of Stock' ? 'bg-gray-100 text-gray-500' : 'bg-emerald-100 text-emerald-700'}`}>
+                              {item.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "insights" && (
+          <div className="max-w-5xl mx-auto w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
+              <div>
+                <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">Proactive Insights</h2>
+                <p className="text-slate-500 mt-2 font-medium">AI-driven analysis and key observations from your latest data.</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                  <input 
+                    type="text"
+                    placeholder="Search insights..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-9 pr-4 py-2 bg-white border border-slate-200 text-slate-900 placeholder:text-slate-400 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm w-full md:w-64"
+                  />
+                </div>
+              </div>
             </div>
 
-            {!isDemoMode ? (
-              <div className="flex-1 flex flex-col items-center justify-center text-center py-8 px-4 rounded-lg border border-dashed border-slate-200 dark:border-slate-800">
-                <Bot className="w-7 h-7 text-slate-300 dark:text-slate-600 mb-2" />
-                <p className="text-xs font-medium text-slate-700 dark:text-slate-300">
-                  Agent Standby Mode
-                </p>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                  Recommendations appear automatically once sales or inventory pipelines connect.
-                </p>
+            <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
+              <button onClick={() => setInsightFilter("all")} className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-colors ${insightFilter === 'all' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20' : 'bg-white text-slate-600 border border-slate-200 hover:text-slate-900 hover:bg-slate-50 shadow-sm'}`}>All ({insightCounts.total})</button>
+              <button onClick={() => setInsightFilter("alert")} className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-colors ${insightFilter === 'alert' ? 'bg-amber-500 text-white shadow-md shadow-amber-500/20' : 'bg-white text-slate-600 border border-slate-200 hover:text-slate-900 hover:bg-slate-50 shadow-sm'}`}>Alerts ({insightCounts.alert})</button>
+              <button onClick={() => setInsightFilter("success")} className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-colors ${insightFilter === 'success' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'bg-white text-slate-600 border border-slate-200 hover:text-slate-900 hover:bg-slate-50 shadow-sm'}`}>Success ({insightCounts.success})</button>
+              <button onClick={() => setInsightFilter("info")} className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-colors ${insightFilter === 'info' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20' : 'bg-white text-slate-600 border border-slate-200 hover:text-slate-900 hover:bg-slate-50 shadow-sm'}`}>Info ({insightCounts.info})</button>
+            </div>
+            
+            {visibleInsights.length === 0 ? (
+              <div className="bg-white border rounded-xl p-12 text-center text-gray-500 shadow-sm">
+                <Bell className="mx-auto mb-4 text-gray-300" size={48} />
+                <h3 className="text-lg font-semibold text-gray-700">No insights found</h3>
+                <p>Try adjusting your search or filters, or upload more data.</p>
+                {(searchQuery || insightFilter !== 'all') && (
+                  <button onClick={() => { setSearchQuery(''); setInsightFilter('all'); }} className="mt-4 text-blue-600 hover:underline">Clear filters</button>
+                )}
               </div>
             ) : (
-              <div className="space-y-3 flex-1">
-                {insights.map((item) => {
-                  const isExecuted = item.status === "executed";
-                  const badgeStyles =
-                    item.severity === "critical"
-                      ? "text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10 border-rose-200/60 dark:border-rose-500/20"
-                      : item.severity === "warning"
-                      ? "text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 border-amber-200/60 dark:border-amber-500/20"
-                      : "text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200/60 dark:border-emerald-500/20";
+              <div className="grid gap-5">
+                {visibleInsights.map((insight, idx) => {
+                  // Determine styling and icons dynamically based on insight type
+                  let IconComponent, borderStyle, iconBg, titleColor;
+                  
+                  if (insight.type === 'success') {
+                    IconComponent = CheckCircle;
+                    borderStyle = "border-l-4 border-l-emerald-500 border-gray-200 hover:border-emerald-300";
+                    iconBg = "bg-emerald-50 text-emerald-600";
+                    titleColor = "text-emerald-800";
+                  } else if (insight.type === 'alert') {
+                    IconComponent = AlertTriangle;
+                    borderStyle = "border-l-4 border-l-amber-500 border-gray-200 hover:border-amber-300";
+                    iconBg = "bg-amber-50 text-amber-600";
+                    titleColor = "text-amber-800";
+                  } else {
+                    IconComponent = Info;
+                    borderStyle = "border-l-4 border-l-blue-500 border-gray-200 hover:border-blue-300";
+                    iconBg = "bg-blue-50 text-blue-600";
+                    titleColor = "text-blue-800";
+                  }
 
                   return (
-                    <div
-                      key={item.id}
-                      className={`p-3.5 rounded-lg border transition-all ${
-                        isExecuted
-                          ? "border-slate-100 dark:border-slate-800/80 bg-slate-50/70 dark:bg-slate-800/30 opacity-75"
-                          : "border-slate-200/90 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-800/40 hover:border-indigo-300 dark:hover:border-indigo-700/70"
-                      }`}
+                    <div 
+                      key={insight.title + idx} 
+                      className={`bg-white group relative flex items-start gap-5 p-6 rounded-xl border shadow-sm transition-all duration-300 hover:shadow-xl hover:-translate-y-1 cursor-default ${borderStyle}`}
                     >
-                      <div className="flex items-center justify-between gap-2 mb-1.5">
-                        <span className={`text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded border ${badgeStyles}`}>
-                          {item.category}
-                        </span>
-                        <span className="text-[11px] font-medium text-slate-400 tabular-nums">
-                          {item.confidence}% conf.
-                        </span>
+                      <div className={`p-3 rounded-full flex-shrink-0 ${iconBg}`}>
+                        <IconComponent size={24} strokeWidth={2.5} />
                       </div>
-                      <h3 className="text-xs font-semibold text-slate-900 dark:text-white leading-snug">
-                        {item.title}
-                      </h3>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-                        {item.description}
-                      </p>
-
-                      <div className="mt-3 flex items-center justify-between gap-2">
-                        <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 tabular-nums">
-                          {item.impact}
-                        </span>
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            onClick={() => handleAskAgent(item.prompt)}
-                            className="px-2 py-1 rounded-md text-[11px] font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-200/70 dark:hover:bg-slate-700 transition-colors cursor-pointer"
-                          >
-                            Ask Agent
-                          </button>
-                          <button
-                            disabled={isExecuted}
-                            onClick={() => handleExecuteInsight(item.id)}
-                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors cursor-pointer ${
-                              isExecuted
-                                ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 cursor-default"
-                                : "bg-indigo-600 hover:bg-indigo-500 text-white"
-                            }`}
-                          >
-                            {isExecuted ? (
-                              <>
-                                <Check className="w-3 h-3" /> Done
-                              </>
-                            ) : (
-                              item.actionLabel
-                            )}
-                          </button>
-                        </div>
+                      <div className="flex-1 pt-1 pr-16">
+                        <h3 className={`text-lg font-bold mb-1.5 ${titleColor}`}>
+                          {insight.title}
+                        </h3>
+                        <p className="text-gray-600 leading-relaxed">
+                          {insight.description}
+                        </p>
+                      </div>
+                      <div className="absolute top-4 right-4 flex opacity-0 group-hover:opacity-100 transition-opacity gap-2">
+                        <button 
+                          onClick={() => handleCopyInsight(insight)}
+                          className="p-1.5 text-gray-400 hover:text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-md transition-colors"
+                          title="Copy insight"
+                        >
+                          {copiedInsight === insight.title ? <Check size={16} className="text-green-600" /> : <Copy size={16} />}
+                        </button>
+                        <button 
+                          onClick={() => setDismissedInsights([...dismissedInsights, insight.title])}
+                          className="p-1.5 text-gray-400 hover:text-red-600 bg-gray-50 hover:bg-red-50 rounded-md transition-colors"
+                          title="Dismiss insight"
+                        >
+                          <X size={16} />
+                        </button>
                       </div>
                     </div>
                   );
@@ -1777,1265 +2317,624 @@ export default function App() {
               </div>
             )}
           </div>
-        </div>
+        )}
 
-        {/* Bottom Bento Row */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-          {/* Card 1: Target vs Actual */}
-          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  Target vs. Actual
-                </span>
-                <span
-                  className={`text-xs font-semibold px-2 py-0.5 rounded-full tabular-nums ${
-                    !isDemoMode
-                      ? "bg-slate-100 dark:bg-slate-800 text-slate-500"
-                      : "bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300"
-                  }`}
-                >
-                  {metrics.goalProgress.toFixed(1)}% of Goal
-                </span>
+        {activeTab === "chat" && (
+          <div className="bg-white rounded-3xl shadow-sm border border-gray-100 flex flex-col h-[85vh] max-h-[800px] animate-in fade-in duration-500 overflow-hidden">
+            <div className="p-6 border-b border-gray-100 bg-white flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center">
+                  <MessageSquare size={24} />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900">All-Rounder AI Business Copilot</h2>
+                  <p className="text-sm text-gray-500">Your 24/7 strategic advisor for revenue growth, pricing, cashflow, marketing, and operations.</p>
+                </div>
               </div>
-
-              <div className="flex items-baseline justify-between mb-3">
-                <span className="text-2xl font-bold tracking-tight tabular-nums text-slate-900 dark:text-white">
-                  {isDemoMode ? formatCurrency(baseRevenue) : "$0"}
-                </span>
-                <span className="text-xs text-slate-500 dark:text-slate-400 tabular-nums">
-                  Goal: {formatCurrency(monthlyGoal)}
-                </span>
-              </div>
-
-              {/* Progress Bar */}
-              <div className="w-full h-2.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
-                <div
-                  className="h-full rounded-full bg-indigo-600 transition-all duration-700 ease-out"
-                  style={{ width: `${metrics.goalProgress}%` }}
-                />
-              </div>
-            </div>
-
-            <div className="mt-5 pt-3.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
-              <span className="text-slate-500 dark:text-slate-400">
-                {isDemoMode ? "Monthly run-rate pace" : "Operational target calibrated"}
-              </span>
-              <span className={`font-medium ${isDemoMode ? "text-emerald-600 dark:text-emerald-400" : "text-slate-400"}`}>
-                {isDemoMode ? "+6.2% ahead" : "Awaiting data"}
-              </span>
-            </div>
-          </div>
-
-          {/* Card 2: Inventory Health Index */}
-          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 flex flex-col justify-between">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                Inventory Health Index
-              </span>
-              <span
-                className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                  !isDemoMode
-                    ? "bg-slate-100 dark:bg-slate-800 text-slate-500"
-                    : metrics.lowStockCount > 0
-                    ? "bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400"
-                    : "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
-                }`}
+              <button 
+                onClick={() => setChatLog([])}
+                className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-50 hover:bg-gray-100 rounded-xl border border-gray-200 transition-colors flex items-center gap-2"
               >
-                {!isDemoMode
-                  ? "No Data"
-                  : metrics.lowStockCount > 0
-                  ? `${metrics.lowStockCount} Low Stock`
-                  : "All Optimal"}
-              </span>
-            </div>
-
-            <div className="flex items-center gap-5 my-1">
-              <RadialScoreGauge score={metrics.healthScore} darkMode={darkMode} />
-              <div className="space-y-1.5 flex-1">
-                <p className="text-sm font-semibold text-slate-900 dark:text-white">
-                  {!isDemoMode
-                    ? "Threshold Monitor Idle"
-                    : metrics.healthScore >= 85
-                    ? "Strong Stock Coverage"
-                    : "Reorder Attention Needed"}
-                </p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                  {!isDemoMode
-                    ? "Connect inventory SKUs to enable automated replenishment alerts."
-                    : `Tracking ${inventory.length} core SKUs with 12-day average stock cover.`}
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-4 pt-3.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-              <span className="text-xs text-slate-500 dark:text-slate-400">
-                Automated PO threshold active
-              </span>
-              <button
-                onClick={() => setActiveNav("inventory")}
-                className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
-              >
-                Inspect <ArrowRight className="w-3 h-3" />
+                Clear Chat
               </button>
             </div>
-          </div>
+            
+            <div className="flex-1 p-6 overflow-y-auto bg-white/40 backdrop-blur-sm space-y-6 rounded-t-3xl border border-gray-100/50">
+              {chatLog.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-center">
+                  <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mb-6">
+                    <Sparkles size={32} className="text-blue-500" />
+                  </div>
+                  <h3 className="text-xl font-bold text-gray-800 mb-2">How can I help grow your business today?</h3>
+                  <p className="text-gray-500 max-w-md">
+                    Ask me anything: pricing optimization, marketing campaigns, customer retention, sales forecasting, or inventory replenishment strategies.
+                  </p>
+                </div>
+              ) : (
+                chatLog.map((msg, i) => {
+                  let cleanText = msg.text || "";
+                  const isThinking = (cleanText.match(/<think>/gi) || []).length > (cleanText.match(/<\/think>/gi) || []).length;
+                  cleanText = cleanText.replace(/<think>[\s\S]*?(<\/think>|$)/gi, '').trim();
 
-          {/* Card 3: Live Business Velocity */}
-          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 flex flex-col">
-            <div className="flex items-center justify-between mb-3.5">
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                Live Business Velocity
-              </span>
-              <span className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                Live Feed
-              </span>
-            </div>
-
-            {!isDemoMode ? (
-              <div className="flex-1 flex flex-col items-center justify-center py-6 text-center">
-                <span className="text-lg font-bold tabular-nums text-slate-900 dark:text-white">
-                  0 Events
-                </span>
-                <span className="text-xs text-slate-400 mt-0.5">
-                  ~0/day velocity • Webhooks idle
-                </span>
-              </div>
-            ) : (
-              <div className="space-y-2.5 flex-1 max-h-[175px] overflow-y-auto pr-1">
-                {feed.slice(0, 5).map((ev) => (
-                  <div
-                    key={ev.id}
-                    className={`flex items-center justify-between gap-2 p-2 rounded-lg transition-colors ${
-                      ev.isNew
-                        ? "bg-indigo-50/70 dark:bg-indigo-500/10 border border-indigo-200/60 dark:border-indigo-500/20"
-                        : "hover:bg-slate-50 dark:hover:bg-slate-800/60"
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <span
-                        className={`w-2 h-2 rounded-full shrink-0 ${
-                          ev.type === "sale"
-                            ? "bg-emerald-500"
-                            : ev.type === "expense"
-                            ? "bg-rose-500"
-                            : "bg-indigo-500"
-                        }`}
-                      />
-                      <div className="min-w-0">
-                        <p className="text-xs font-medium text-slate-900 dark:text-white truncate">
-                          {ev.title}
-                        </p>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-                          {ev.category}
-                        </p>
+                  return (
+                    <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"} animate-in slide-in-from-bottom-2 duration-300`}>
+                      <div className="flex items-end gap-3 max-w-[80%]">
+                        {msg.role === "ai" && (
+                          <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0 mb-1">
+                            <Sparkles size={14} className="text-blue-600" />
+                          </div>
+                        )}
+                        <div className={`p-4 rounded-2xl shadow-sm text-[15px] leading-relaxed whitespace-pre-wrap ${
+                          msg.role === "user" 
+                            ? "bg-blue-600 text-white rounded-br-sm" 
+                            : "bg-white border border-gray-100 text-gray-800 rounded-bl-sm"
+                        }`}>
+                          {msg.role === "ai" && isChatLoading && i === chatLog.length - 1 && (
+                            <div className="flex gap-1 items-center h-5 px-2">
+                              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                            </div>
+                          )}
+                          {msg.role === "ai" && isThinking && !isChatLoading && isChatStreaming && i === chatLog.length - 1 && (
+                            <div className="text-xs text-gray-400 italic mb-3 animate-pulse font-medium border-b border-gray-100 pb-2">Analyzing data context...</div>
+                          )}
+                          {cleanText.split(/(\*\*.*?\*\*)/g).map((part, partIdx) => {
+                            if (part.startsWith('**') && part.endsWith('**')) {
+                              return <strong key={partIdx}>{part.slice(2, -2)}</strong>;
+                            }
+                            return <span key={partIdx}>{part}</span>;
+                          })}
+                        </div>
+                        {msg.role === "user" && (
+                          <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0 mb-1">
+                            <span className="text-xs font-bold text-gray-500">YOU</span>
+                          </div>
+                        )}
                       </div>
                     </div>
-                    <div className="text-right shrink-0">
-                      {ev.amount > 0 && (
-                        <p
-                          className={`text-xs font-semibold tabular-nums ${
-                            ev.type === "sale"
-                              ? "text-emerald-600 dark:text-emerald-400"
-                              : "text-slate-700 dark:text-slate-300"
-                          }`}
-                        >
-                          {ev.type === "sale" ? "+" : "-"}
-                          {formatCurrency(ev.amount, 2)}
-                        </p>
-                      )}
-                      <p className="text-[10px] text-slate-400">{ev.time}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  const renderCashflowView = () => (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">
-            Cashflow Analytics
-          </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-            Inflow vs outflow breakdown, net operating margin, and liquidity runway.
-          </p>
-        </div>
-        <button
-          onClick={() => handleAskAgent("Summarize today's cashflow and margin drivers.")}
-          className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium transition-colors cursor-pointer"
-        >
-          <Sparkles className="w-3.5 h-3.5" />
-          Ask Agent to Audit Margin
-        </button>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {[
-          { label: "Net Cashflow (30D)", value: formatCurrency(isDemoMode ? baseRevenue - baseExpenses : 0), sub: "+21.4% vs prior month" },
-          { label: "Net Operating Margin", value: `${metrics.netMargin.toFixed(1)}%`, sub: "Target benchmark: 55.0%" },
-          { label: "Projected 90D Runway", value: isDemoMode ? "18.4 Months" : "—", sub: "Zero debt covenants triggered" },
-        ].map((c) => (
-          <div
-            key={c.label}
-            className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5"
-          >
-            <p className="text-xs font-medium text-slate-500 dark:text-slate-400">{c.label}</p>
-            <p className="text-2xl font-semibold tabular-nums text-slate-900 dark:text-white mt-2">
-              {c.value}
-            </p>
-            <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">{c.sub}</p>
-          </div>
-        ))}
-      </div>
-
-      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
-        <h2 className="text-sm font-semibold text-slate-900 dark:text-white mb-4">
-          Cashflow by Operational Category
-        </h2>
-        <div className="h-[300px] w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={isDemoMode ? CASHFLOW_CATEGORIES : []} margin={{ top: 8, right: 12, left: -12, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={darkMode ? "#1E293B" : "#F1F5F9"} />
-              <XAxis dataKey="category" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: darkMode ? "#94A3B8" : "#64748B" }} />
-              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: darkMode ? "#94A3B8" : "#64748B" }} tickFormatter={(v) => `$${v / 1000}k`} />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: darkMode ? "#0F172A" : "#FFFFFF",
-                  borderColor: darkMode ? "#1E293B" : "#E2E8F0",
-                  borderRadius: "10px",
-                  fontSize: "12px",
-                }}
-                formatter={(v: any) => formatCurrency(Number(v))}
-              />
-              <Bar dataKey="inflow" name="Inflow" fill="#4F46E5" radius={[6, 6, 0, 0]} />
-              <Bar dataKey="outflow" name="Outflow" fill="#94A3B8" radius={[6, 6, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderInventoryView = () => {
-    const filtered = inventory.filter(
-      (i) => inventoryFilter === "All" || i.status === inventoryFilter
-    );
-
-    return (
-      <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">
-              Inventory Health
-            </h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-              SKU velocity tracking, days-of-cover forecasting, and automated PO dispatch.
-            </p>
-          </div>
-          <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
-            {["All", "Optimal", "Low Stock", "Critical"].map((st) => (
-              <button
-                key={st}
-                onClick={() => setInventoryFilter(st)}
-                className={`px-3 py-1 text-xs font-medium rounded-md transition-all cursor-pointer ${
-                  inventoryFilter === st
-                    ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm"
-                    : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                }`}
-              >
-                {st}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  <th className="py-3 px-4">SKU / Product</th>
-                  <th className="py-3 px-4">On Hand</th>
-                  <th className="py-3 px-4">Velocity</th>
-                  <th className="py-3 px-4">Days Cover</th>
-                  <th className="py-3 px-4">Gross Margin</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4 text-right">Agent Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-sm">
-                {filtered.map((item) => (
-                  <tr
-                    key={item.sku}
-                    className="hover:bg-slate-50/70 dark:hover:bg-slate-800/30 transition-colors"
-                  >
-                    <td className="py-3.5 px-4">
-                      <p className="font-medium text-slate-900 dark:text-white text-xs sm:text-sm">
-                        {item.name}
-                      </p>
-                      <p className="text-[11px] text-slate-400 font-mono">{item.sku}</p>
-                    </td>
-                    <td className="py-3.5 px-4 tabular-nums font-medium text-slate-900 dark:text-white">
-                      {item.stock}
-                    </td>
-                    <td className="py-3.5 px-4 tabular-nums text-slate-600 dark:text-slate-300">
-                      {item.velocity}
-                    </td>
-                    <td className="py-3.5 px-4 tabular-nums text-slate-600 dark:text-slate-300">
-                      {item.cover}
-                    </td>
-                    <td className="py-3.5 px-4 tabular-nums text-emerald-600 dark:text-emerald-400 font-medium">
-                      {item.margin}
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${
-                          item.status === "Optimal"
-                            ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
-                            : item.status === "Low Stock"
-                            ? "bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400"
-                            : "bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400"
-                        }`}
-                      >
-                        {item.status}
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-4 text-right">
-                      {item.status !== "Optimal" ? (
-                        <button
-                          onClick={() => handleAutoReorder(item.sku)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium transition-colors cursor-pointer"
-                        >
-                          <Sparkles className="w-3 h-3" />
-                          Auto-Reorder
-                        </button>
-                      ) : (
-                        <span className="text-xs text-slate-400">Monitored</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  const renderInsightsView = () => {
-    const filtered = insights.filter(
-      (i) => insightFilter === "All" || i.status === insightFilter.toLowerCase()
-    );
-    return (
-      <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">
-              Proactive Insights
-            </h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-              Autonomous recommendations discovered across sales, fulfillment, and ledger streams.
-            </p>
-          </div>
-          <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
-            {["All", "Pending", "Executed"].map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setInsightFilter(tab)}
-                className={`px-3 py-1 text-xs font-medium rounded-md transition-all cursor-pointer ${
-                  insightFilter === tab
-                    ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm"
-                    : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                }`}
-              >
-                {tab}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filtered.map((item) => (
-            <div
-              key={item.id}
-              className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 flex flex-col justify-between"
-            >
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
-                    {item.category}
-                  </span>
-                  <span className="text-xs text-slate-400 tabular-nums">
-                    {item.confidence}% confidence
-                  </span>
-                </div>
-                <h3 className="text-base font-semibold text-slate-900 dark:text-white">
-                  {item.title}
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">
-                  {item.description}
-                </p>
-              </div>
-              <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-900 dark:text-white tabular-nums">
-                  {item.impact}
-                </span>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => handleAskAgent(item.prompt)}
-                    className="px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
-                  >
-                    Ask Agent
-                  </button>
-                  <button
-                    disabled={item.status === "executed"}
-                    onClick={() => handleExecuteInsight(item.id)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
-                      item.status === "executed"
-                        ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 cursor-default"
-                        : "bg-indigo-600 hover:bg-indigo-500 text-white"
-                    }`}
-                  >
-                    {item.status === "executed" ? "Executed" : item.actionLabel}
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  };
-
-  const renderIntegrationsView = () => (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">
-          Store Integrations
-        </h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-          Real-time webhooks and zero-code data pipelines powering your BIA Agent.
-        </p>
-      </div>
-
-      {/* 1-Click Google Sheet Sync Form */}
-      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6">
-        <div className="flex items-center gap-3 mb-2">
-          <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 flex items-center justify-center font-bold">
-            📊
-          </div>
-          <div>
-            <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Google Sheets Live Sync</h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Keep your spreadsheet; your BIA Agent auto-syncs live sales</p>
-          </div>
-        </div>
-        <form onSubmit={handleSyncGoogleSheet} className="flex flex-col sm:flex-row gap-2.5 mt-4">
-          <input
-            type="url"
-            placeholder="https://docs.google.com/spreadsheets/d/..."
-            value={googleSheetUrl}
-            onChange={(e) => setGoogleSheetUrl(e.target.value)}
-            className="flex-1 p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-mono outline-none focus:ring-2 focus:ring-indigo-500"
-            required
-          />
-          <button
-            type="submit"
-            disabled={isSyncingSheet}
-            className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-xs shadow-sm transition-all cursor-pointer disabled:opacity-50 shrink-0"
-          >
-            {isSyncingSheet ? "Syncing Sheet..." : "Sync Sheet Now"}
-          </button>
-        </form>
-        {sheetSyncResult && (
-          <p className="mt-3 text-xs font-semibold text-emerald-600 dark:text-emerald-400">{sheetSyncResult}</p>
-        )}
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {integrations.map((conn) => (
-          <div
-            key={conn.id}
-            className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 flex flex-col justify-between"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
-                  {conn.name}
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  {conn.category}
-                </p>
-              </div>
-              <span
-                className={`inline-flex items-center gap-1.5 text-[11px] font-medium px-2 py-0.5 rounded-full ${
-                  conn.connected
-                    ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
-                    : "bg-slate-100 dark:bg-slate-800 text-slate-500"
-                }`}
-              >
-                <span
-                  className={`w-1.5 h-1.5 rounded-full ${
-                    conn.connected ? "bg-emerald-500" : "bg-slate-400"
-                  }`}
-                />
-                {conn.connected ? "Connected" : "Inactive"}
-              </span>
-            </div>
-
-            <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-              <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                <p>{conn.records}</p>
-                <p className="text-slate-400">Synced: {conn.lastSync}</p>
-              </div>
-              <button
-                onClick={() => handleToggleIntegration(conn.id)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors cursor-pointer ${
-                  conn.connected
-                    ? "border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
-                    : "border-indigo-600 bg-indigo-600 hover:bg-indigo-500 text-white"
-                }`}
-              >
-                {conn.connected ? "Disconnect" : "Connect"}
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-
-  const renderUploadView = () => (
-    <div className="space-y-6 max-w-3xl">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">
-          Upload Datasets
-        </h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-          Ingest CSV, Excel, or JSON transaction ledgers with automatic AI schema mapping.
-        </p>
-      </div>
-
-      <div className="rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 p-8 sm:p-12 text-center">
-        <div className="w-12 h-12 rounded-xl bg-indigo-50 dark:bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mx-auto mb-4">
-          <FileSpreadsheet className="w-6 h-6" />
-        </div>
-        <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
-          Drop your POS exports or transaction files here
-        </h3>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 mb-5">
-          Supports .CSV, .XLSX, .JSON up to 50MB • Encrypted & private
-        </p>
-        
-        <div className="flex flex-col items-center gap-3">
-          <input
-            type="file"
-            id="csv-file-picker"
-            accept=".csv,.xlsx,.json"
-            onChange={(e) => setFile(e.target.files?.[0] || null)}
-            className="hidden"
-          />
-          <div className="flex flex-wrap items-center justify-center gap-3">
-            <label
-              htmlFor="csv-file-picker"
-              className="px-4 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-semibold cursor-pointer transition-colors"
-            >
-              {file ? file.name : "Select CSV from Computer"}
-            </label>
-            {file && (
-              <button
-                onClick={handleFileUpload}
-                disabled={loading}
-                className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium transition-colors cursor-pointer disabled:opacity-50"
-              >
-                {loading ? "Processing Dataset..." : "Upload to AI Agent"}
-              </button>
-            )}
-            <button
-              onClick={() => {
-                setIsDemoMode(true);
-                setActiveNav("overview");
-                showToast("Sample Q4 Ledger (1,284 rows) mapped & synced.", "success");
-              }}
-              className="px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-medium transition-colors cursor-pointer"
-            >
-              Try Sample CSV Stream
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderAccountView = () => (
-    <div className="space-y-6 max-w-2xl">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">
-          Account & Files
-        </h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-          Manage your BIA Platform PRO workspace, API webhooks, and uploaded files.
-        </p>
-      </div>
-
-      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 space-y-5">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-semibold text-slate-900 dark:text-white">Workspace Owner</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400">{userProfile?.email || email || "Active Workspace"}</p>
-          </div>
-          <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30">
-            PRO Tier
-          </span>
-        </div>
-
-        <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-          <div>
-            <p className="text-xs font-medium text-slate-700 dark:text-slate-300">
-              Appearance Theme
-            </p>
-            <p className="text-[11px] text-slate-500">
-              Switch between crisp executive light and slate dark mode.
-            </p>
-          </div>
-          <button
-            onClick={() => setDarkMode(!darkMode)}
-            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
-          >
-            {darkMode ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
-            {darkMode ? "Switch to Light" : "Switch to Dark"}
-          </button>
-        </div>
-
-        {/* Uploaded Files Section */}
-        {userProfile && userProfile.files && (
-          <div className="pt-4 border-t border-slate-100 dark:border-slate-800">
-            <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-3">
-              Uploaded Datasets ({userProfile.files.length})
-            </h4>
-            {userProfile.files.length === 0 ? (
-              <p className="text-xs text-slate-400">No external CSV datasets uploaded yet.</p>
-            ) : (
-              <div className="space-y-2">
-                {userProfile.files.map((f: any) => (
-                  <div key={f.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-xs">
-                    <div className="flex items-center gap-2.5 truncate">
-                      <FileText size={16} className="text-indigo-600 shrink-0" />
-                      <span className="font-medium text-slate-800 dark:text-white truncate">{f.filename}</span>
-                    </div>
-                    <button
-                      onClick={() => handleDeleteFile(f.id)}
-                      className="p-1 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
-                      title="Delete dataset"
-                    >
-                      <Trash2 size={15} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end">
-          <button
-            onClick={handleLogout}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors cursor-pointer"
-          >
-            <LogOut size={14} /> Log Out of Workspace
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-
-  // ============================================================================
-  // MAIN LAYOUT SHELL
-  // ============================================================================
-
-  return (
-    <div className={darkMode ? "dark" : ""}>
-      <div className="min-h-screen flex bg-[#F8FAFC] dark:bg-[#0B0F19] text-slate-900 dark:text-slate-100 font-sans antialiased transition-colors duration-200">
-        {/* Mobile Sidebar Backdrop */}
-        {mobileMenuOpen && (
-          <div
-            onClick={() => setMobileMenuOpen(false)}
-            className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-xs lg:hidden"
-          />
-        )}
-
-        {/* Collapsible Left Sidebar */}
-        <aside
-          className={`fixed lg:sticky top-0 left-0 z-50 h-screen flex flex-col bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 transition-all duration-200 ease-out shrink-0 ${
-            sidebarCollapsed ? "w-[68px]" : "w-[240px]"
-          } ${mobileMenuOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}
-        >
-          {/* Brand Header */}
-          <div className="h-16 px-3.5 flex items-center justify-between border-b border-slate-100 dark:border-slate-800/80">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-                <Sparkles className="w-4 h-4" />
-              </div>
-              {!sidebarCollapsed && (
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-sm font-semibold tracking-tight text-slate-900 dark:text-white truncate">
-                      BIA Platform
-                    </span>
-                    <span className="px-1.5 py-0.5 text-[9px] font-bold tracking-wider uppercase rounded bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-200/70 dark:border-indigo-500/30">
-                      PRO
-                    </span>
-                  </div>
-                  <p className="text-[10px] text-slate-400 truncate">
-                    Business Intelligent Agent
-                  </p>
-                </div>
+                  );
+                })
               )}
+              <div ref={chatEndRef} />
+            </div>
+            
+            <div className="p-6 bg-white border-t border-gray-100">
+              <div className="relative flex items-center">
+                <input 
+                  type="text" 
+                  value={chatInput} 
+                  onChange={(e) => setChatInput(e.target.value)} 
+                  onKeyDown={(e) => e.key === "Enter" && handleSendMessage()} 
+                  placeholder="Ask your AI business agent anything (pricing, sales growth, cashflow, operations)..."
+                  disabled={isChatLoading || isChatStreaming}
+                  className="flex-1 pl-6 pr-16 py-4 bg-slate-50 border border-slate-200 rounded-full text-base text-slate-900 placeholder:text-slate-400 font-medium outline-none focus:bg-white focus:border-blue-600 focus:ring-4 focus:ring-blue-500/10 transition-all disabled:opacity-50" 
+                />
+                <button 
+                  onClick={handleSendMessage} 
+                  disabled={!chatInput.trim() || isChatLoading || isChatStreaming}
+                  className={`absolute right-2 p-3 rounded-full flex items-center justify-center transition-all ${
+                    (!chatInput.trim() || isChatLoading || isChatStreaming)
+                      ? "bg-gray-100 text-gray-400" 
+                      : "bg-blue-600 text-white shadow-md hover:bg-blue-700 hover:shadow-lg hover:-translate-y-0.5"
+                  }`}
+                >
+                  <Send size={18} className="ml-1" />
+                </button>
+              </div>
+              <p className="text-center text-xs text-gray-400 mt-4">BIA AI Business Agent grounds real-time store data with executive business strategy and operational intelligence.</p>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "profile" && userProfile && (
+          <div className="flex flex-col gap-8 animate-in fade-in duration-500 max-w-4xl mx-auto w-full">
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">Account & Resources</h2>
+                <p className="text-slate-500 mt-1 font-medium">Manage your credentials and uploaded datasets.</p>
+              </div>
+            </div>
+            
+            <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100/50 flex items-center gap-6 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+              <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center shrink-0">
+                <User size={32} />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-gray-900">User Profile</h3>
+                <p className="text-gray-500 font-medium">{userProfile.email}</p>
+              </div>
             </div>
 
-            <button
-              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-              aria-label="Toggle sidebar width"
-              className="hidden lg:flex w-6 h-6 items-center justify-center rounded-md text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-            >
-              {sidebarCollapsed ? (
-                <ChevronRight className="w-3.5 h-3.5" />
+            <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+              <h3 className="text-xl font-bold text-gray-900 mb-6">Uploaded Files</h3>
+              {userProfile.files.length === 0 ? (
+                <div className="text-center p-8 border-2 border-dashed border-gray-200 rounded-2xl">
+                  <p className="text-gray-500">You haven&apos;t uploaded any files yet.</p>
+                </div>
               ) : (
-                <ChevronLeft className="w-3.5 h-3.5" />
-              )}
-            </button>
-          </div>
-
-          {/* Navigation Links */}
-          <nav className="flex-1 overflow-y-auto py-4 px-2.5 space-y-5">
-            {navSections.map((section) => (
-              <div key={section.label}>
-                {!sidebarCollapsed && (
-                  <p className="px-2.5 mb-2 text-[10px] font-semibold tracking-wider text-slate-400 dark:text-slate-500 uppercase">
-                    {section.label}
-                  </p>
-                )}
-                <div className="space-y-1">
-                  {section.items.map((item) => {
-                    const Icon = item.icon;
-                    const isActive = activeNav === item.id && !item.opensDrawer;
-
-                    return (
-                      <button
-                        key={item.id}
-                        title={sidebarCollapsed ? item.label : undefined}
-                        onClick={() => {
-                          if (item.opensDrawer) {
-                            setCopilotOpen(true);
-                          } else {
-                            setActiveNav(item.id);
-                          }
-                          setMobileMenuOpen(false);
-                        }}
-                        className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-medium transition-all cursor-pointer ${
-                          isActive
-                            ? "bg-indigo-50 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 font-semibold"
-                            : "text-slate-600 dark:text-slate-400 hover:bg-slate-100/80 dark:hover:bg-slate-800/70 hover:text-slate-900 dark:hover:text-white"
-                        }`}
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <Icon
-                            className={`w-4 h-4 shrink-0 ${
-                              isActive
-                                ? "text-indigo-600 dark:text-indigo-400"
-                                : "text-slate-400 dark:text-slate-500"
-                            }`}
-                          />
-                          {!sidebarCollapsed && (
-                            <span className="truncate">{item.label}</span>
-                          )}
+                <div className="space-y-4">
+                  {userProfile.files.map((file) => (
+                    <div key={file.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100 hover:border-gray-200 transition-colors">
+                        <div className="flex items-center gap-4">
+                          <div className={`p-3 shadow-sm rounded-xl ${file.status === 'failed' ? 'bg-red-100 text-red-600' : 'bg-white text-gray-600'}`}>
+                            <FileText size={20} />
+                          </div>
+                          <div>
+                            <p className="font-semibold text-gray-800">{file.filename}</p>
+                            <p className={`text-xs mt-0.5 font-medium ${file.status === 'processing' ? 'text-blue-500 animate-pulse' : file.status === 'failed' ? 'text-red-500' : 'text-green-500'}`}>
+                              {file.status === 'processing' ? 'Processing in background...' : file.status === 'failed' ? 'Failed processing' : 'Data Ready'}
+                            </p>
+                          </div>
                         </div>
-                        {!sidebarCollapsed && item.badge && (
-                          <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded-full bg-indigo-600 text-white tabular-nums">
-                            {item.badge}
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-          </nav>
-
-          {/* Bottom Profile & Theme Toggle */}
-          <div className="p-2.5 border-t border-slate-100 dark:border-slate-800/80">
-            <div
-              className={`flex items-center ${
-                sidebarCollapsed ? "justify-center" : "justify-between"
-              } p-2 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-800`}
-            >
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="relative w-7 h-7 rounded-full bg-indigo-600 text-white text-xs font-semibold flex items-center justify-center shrink-0">
-                  {(userProfile?.email || email || "U").charAt(0).toUpperCase()}
-                  <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-white dark:border-slate-900" />
-                </div>
-                {!sidebarCollapsed && (
-                  <div className="min-w-0">
-                    <p className="text-xs font-medium text-slate-900 dark:text-white truncate">
-                      {userProfile?.email || email || "Workspace"}
-                    </p>
-                    <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
-                      Active
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {!sidebarCollapsed && (
-                <button
-                  onClick={() => setDarkMode(!darkMode)}
-                  title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
-                  className="p-1.5 rounded-md text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-700 transition-colors cursor-pointer"
-                >
-                  {darkMode ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
-                </button>
-              )}
-            </div>
-          </div>
-        </aside>
-
-        {/* Main Content Column */}
-        <div className="flex-1 flex flex-col min-w-0">
-          {/* Top Sticky Header Bar */}
-          <header className="sticky top-0 z-30 h-16 bg-white/85 dark:bg-slate-900/85 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-4 sm:px-6 flex items-center justify-between gap-3">
-            {/* Left: Mobile Menu + AI Command Bar Trigger */}
-            <div className="flex items-center gap-3 flex-1 max-w-md">
-              <button
-                onClick={() => setMobileMenuOpen(true)}
-                aria-label="Open menu"
-                className="lg:hidden p-2 -ml-1 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
-              >
-                <Menu className="w-5 h-5" />
-              </button>
-
-              <button
-                onClick={() => setCopilotOpen(true)}
-                className="w-full flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700/80 bg-slate-50/80 dark:bg-slate-800/60 hover:bg-slate-100/80 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 text-xs transition-colors cursor-pointer"
-              >
-                <span className="flex items-center gap-2 truncate">
-                  <Search className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
-                  <span className="truncate">
-                    Ask BIA Agent anything... e.g., &apos;Why did margin dip?&apos;
-                  </span>
-                </span>
-                <kbd className="hidden sm:inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-slate-400 shrink-0">
-                  ⌘K
-                </kbd>
-              </button>
-            </div>
-
-            {/* Right: Live Status Pill, Demo/Empty Toggle, Record Transaction, Notifications */}
-            <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-              {/* Compact Live Status Pill */}
-              <div className="hidden xl:inline-flex items-center gap-2 px-2.5 py-1 rounded-full border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 text-[11px] font-medium text-slate-600 dark:text-slate-300">
-                <span
-                  className={`w-1.5 h-1.5 rounded-full ${
-                    isDemoMode ? "bg-emerald-500 animate-pulse" : "bg-amber-400"
-                  }`}
-                />
-                <span>
-                  {isDemoMode ? "Agent Live • Synced just now" : "Agent Standby • Empty"}
-                </span>
-              </div>
-
-              {/* Demo Data / Empty State Segmented Toggle */}
-              <div className="inline-flex items-center p-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 text-[11px] font-medium">
-                <button
-                  onClick={() => setIsDemoMode(true)}
-                  className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
-                    isDemoMode
-                      ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
-                      : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                  }`}
-                >
-                  Demo Data
-                </button>
-                <button
-                  onClick={() => setIsDemoMode(false)}
-                  className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
-                    !isDemoMode
-                      ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
-                      : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                  }`}
-                >
-                  Empty State
-                </button>
-              </div>
-
-              {/* Record Live Transaction Button */}
-              <button
-                onClick={() => setTxModalOpen(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium shadow-xs transition-colors cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Record Transaction</span>
-              </button>
-
-              {/* Notification Bell */}
-              <div className="relative">
-                <button
-                  onClick={() => setNotifOpen(!notifOpen)}
-                  aria-label="Notifications"
-                  className="relative p-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                >
-                  <Bell className="w-4 h-4" />
-                  {unreadInsightsCount > 0 && (
-                    <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white dark:ring-slate-900" />
-                  )}
-                </button>
-
-                {notifOpen && (
-                  <div className="absolute right-0 mt-2 w-80 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-lg p-3 z-50">
-                    <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100 dark:border-slate-800">
-                      <span className="text-xs font-semibold text-slate-900 dark:text-white">
-                        Agent Alerts
-                      </span>
-                      <button
-                        onClick={() => setNotifOpen(false)}
-                        className="text-[11px] text-slate-400 hover:text-slate-600 cursor-pointer"
-                      >
-                        Close
+                        <button onClick={() => handleDeleteFile(file.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Delete file and its data">
+                        <Trash2 size={20} />
                       </button>
                     </div>
-                    <div className="space-y-2 max-h-64 overflow-y-auto">
-                      {insights.map((ins) => (
-                        <button
-                          key={ins.id}
-                          onClick={() => {
-                            setNotifOpen(false);
-                            handleAskAgent(ins.prompt);
-                          }}
-                          className="w-full text-left p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/70 transition-colors cursor-pointer"
-                        >
-                          <p className="text-xs font-medium text-slate-900 dark:text-white">
-                            {ins.title}
-                          </p>
-                          <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5">
-                            {ins.description}
-                          </p>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </header>
-
-          {/* Active Page View */}
-          <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-[1440px] w-full mx-auto">
-            {activeNav === "overview" && renderOverviewDashboard()}
-            {activeNav === "cashflow" && renderCashflowView()}
-            {activeNav === "inventory" && renderInventoryView()}
-            {activeNav === "insights" && renderInsightsView()}
-            {activeNav === "integrations" && renderIntegrationsView()}
-            {activeNav === "upload" && renderUploadView()}
-            {activeNav === "account" && renderAccountView()}
-          </main>
-        </div>
-
-        {/* ====================================================================
-            AI COPILOT SLIDE-OVER DRAWER
-           ==================================================================== */}
-        {copilotOpen && (
-          <div className="fixed inset-0 z-50 flex justify-end">
-            <div
-              onClick={() => setCopilotOpen(false)}
-              className="fixed inset-0 bg-slate-900/30 dark:bg-slate-950/60 backdrop-blur-[2px]"
-            />
-            <div className="relative z-10 w-full max-w-md bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 h-full flex flex-col shadow-2xl">
-              {/* Drawer Header */}
-              <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center">
-                    <Bot className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h2 className="text-sm font-semibold text-slate-900 dark:text-white">
-                      BIA Copilot Assistant
-                    </h2>
-                    <p className="text-[11px] text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                      Connected to live telemetry
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setCopilotOpen(false)}
-                  aria-label="Close copilot"
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              {/* Quick Prompt Chips */}
-              <div className="px-5 py-3 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/70 dark:bg-slate-800/30">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-2">
-                  Quick Executive Prompts
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {[
-                    "Summarize today's cashflow",
-                    "Which SKUs need restocking?",
-                    "Forecast next month's revenue",
-                    "Why did margin dip?",
-                  ].map((chip) => (
-                    <button
-                      key={chip}
-                      onClick={() => handleSendPrompt(chip)}
-                      className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-indigo-400 dark:hover:border-indigo-500 transition-colors cursor-pointer"
-                    >
-                      {chip}
-                    </button>
                   ))}
                 </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Zero-Code Small Business Data Connections */}
+        {activeTab === "integrations" && (
+          <div className="flex flex-col gap-8 animate-in fade-in duration-500 max-w-5xl mx-auto w-full">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-2">
+              <div>
+                <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-50 border border-blue-200 rounded-full text-blue-700 text-xs font-bold mb-2">
+                  <Plug size={13} className="text-blue-600" /> Automated Store & Tool Connections
+                </div>
+                <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">Zero-Code Business Integrations</h2>
+                <p className="text-slate-500 mt-1 font-medium">Connect your spreadsheets, stores, and payment registers with zero technical knowledge.</p>
               </div>
 
-              {/* Chat Thread */}
-              <div className="flex-1 overflow-y-auto p-5 space-y-4">
-                {messages.map((m) => (
-                  <div
-                    key={m.id}
-                    className={`flex flex-col ${
-                      m.role === "user" ? "items-end" : "items-start"
-                    }`}
-                  >
-                    <div
-                      className={`max-w-[88%] rounded-xl px-3.5 py-2.5 text-xs leading-relaxed whitespace-pre-line ${
-                        m.role === "user"
-                          ? "bg-indigo-600 text-white rounded-br-xs"
-                          : "bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-bl-xs border border-slate-200/70 dark:border-slate-700/70"
-                      }`}
-                    >
-                      {m.text.split("**").map((part, idx) =>
-                        idx % 2 === 1 ? (
-                          <strong key={idx} className="font-semibold">
-                            {part}
-                          </strong>
-                        ) : (
-                          part
-                        )
-                      )}
+              <button
+                onClick={handleSimulateStream}
+                disabled={isSimulatingStream}
+                className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold rounded-2xl shadow-lg shadow-blue-500/20 hover:shadow-xl transition-all active:scale-95 cursor-pointer disabled:opacity-50 text-sm"
+              >
+                <Zap size={16} className={isSimulatingStream ? "animate-spin text-yellow-300" : "text-yellow-300"} />
+                {isSimulatingStream ? "Recording Sale..." : "Record Live Transaction"}
+              </button>
+            </div>
+
+            {/* Top 2 Zero-Code Cards: Google Sheets & Quick In-Store Sale Entry */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* Card 1: 1-Click Google Sheets Auto-Sync */}
+              <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 bg-emerald-100 text-emerald-700 rounded-2xl flex items-center justify-center font-bold text-xl shadow-sm">
+                        📊
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-bold text-gray-900">Google Sheets Live Sync</h3>
+                        <p className="text-xs text-gray-500">Keep your spreadsheet; your dashboard auto-syncs</p>
+                      </div>
                     </div>
-                    <span className="text-[10px] text-slate-400 mt-1 px-1">
-                      {m.timestamp}
+                    <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold rounded-full">
+                      1-Click Ready
                     </span>
                   </div>
-                ))}
 
-                {isTyping && (
-                  <div className="flex items-center gap-2 text-xs text-slate-400">
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin text-indigo-500" />
-                    Analyzing workspace metrics...
-                  </div>
-                )}
-                <div ref={chatEndRef} />
+                  <p className="text-xs text-gray-600 leading-relaxed mb-4">
+                    Paste the sharing link to your Google Sheet below. Anytime you or your staff add new rows in Google Sheets, click sync to update your dashboard instantly.
+                  </p>
+
+                  <form onSubmit={handleSyncGoogleSheet} className="flex flex-col gap-3">
+                    <input
+                      type="url"
+                      placeholder="https://docs.google.com/spreadsheets/d/..."
+                      value={googleSheetUrl}
+                      onChange={(e) => setGoogleSheetUrl(e.target.value)}
+                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 placeholder:text-gray-400 font-mono outline-none focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
+                      required
+                    />
+
+                    {sheetSyncResult && (
+                      <div className={`p-3 rounded-xl text-xs font-semibold ${sheetSyncResult.startsWith('✅') ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
+                        {sheetSyncResult}
+                      </div>
+                    )}
+
+                    <button
+                      type="submit"
+                      disabled={isSyncingSheet || !googleSheetUrl.trim()}
+                      className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold rounded-xl text-xs shadow-md shadow-emerald-600/20 hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <RefreshCw size={14} className={isSyncingSheet ? "animate-spin" : ""} />
+                      {isSyncingSheet ? "Syncing Google Sheet..." : "Sync Sheet with Dashboard"}
+                    </button>
+                  </form>
+                </div>
+
+                <div className="mt-5 pt-4 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-400 font-medium">
+                  <span>Sheet Sharing: "Anyone with link can view"</span>
+                  <span className="text-emerald-600 font-bold">Auto column mapping</span>
+                </div>
               </div>
 
-              {/* Input Footer */}
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  handleSendPrompt();
-                }}
-                className="p-4 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
-              >
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={chatInput}
-                    onChange={(e) => setChatInput(e.target.value)}
-                    placeholder="Ask about revenue, SKUs, or forecasts..."
-                    className="flex-1 px-3.5 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500"
-                  />
+              {/* Card 2: Quick POS / Walk-in Sale Entry */}
+              <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 bg-blue-100 text-blue-700 rounded-2xl flex items-center justify-center font-bold text-xl shadow-sm">
+                        🛒
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-bold text-gray-900">Quick In-Store Sale Entry</h3>
+                        <p className="text-xs text-gray-500">Record counter sales, phone orders, or cash</p>
+                      </div>
+                    </div>
+                    <span className="px-2.5 py-1 bg-blue-50 text-blue-700 border border-blue-200 text-[11px] font-bold rounded-full">
+                      Point-of-Sale
+                    </span>
+                  </div>
+
+                  <form onSubmit={handleRecordQuickSale} className="flex flex-col gap-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-bold text-gray-700 mb-1">Sale Amount ($)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          placeholder="e.g. 150.00"
+                          value={quickSaleAmount}
+                          onChange={(e) => setQuickSaleAmount(e.target.value)}
+                          className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-900 placeholder:text-gray-400 outline-none focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-gray-700 mb-1">Category</label>
+                        <select
+                          value={quickSaleCategory}
+                          onChange={(e) => setQuickSaleCategory(e.target.value)}
+                          className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-gray-900 outline-none focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
+                        >
+                          {inventoryData.length > 0 ? (
+                            inventoryData.map(i => <option key={i.category} value={i.category}>{i.category}</option>)
+                          ) : (
+                            <>
+                              <option value="Tech Box">Tech Box</option>
+                              <option value="Coffee Box">Coffee Box</option>
+                              <option value="Snack Box">Snack Box</option>
+                              <option value="Book Box">Book Box</option>
+                            </>
+                          )}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-bold text-gray-700 mb-1">Channel / Payment</label>
+                        <select
+                          value={quickSaleChannel}
+                          onChange={(e) => setQuickSaleChannel(e.target.value)}
+                          className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-gray-900 outline-none focus:bg-white focus:border-blue-500 transition-all"
+                        >
+                          <option value="In-Store POS">In-Store Register</option>
+                          <option value="Cash Sale">Cash at Counter</option>
+                          <option value="Phone Order">Phone / WhatsApp Order</option>
+                          <option value="Shopify POS">Shopify Store</option>
+                          <option value="Direct Invoice">Direct B2B Invoice</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-gray-700 mb-1">Note (Optional)</label>
+                        <input
+                          type="text"
+                          placeholder="SKU or Customer Name"
+                          value={quickSaleNote}
+                          onChange={(e) => setQuickSaleNote(e.target.value)}
+                          className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 placeholder:text-gray-400 outline-none focus:bg-white focus:border-blue-500 transition-all"
+                        />
+                      </div>
+                    </div>
+
+                    {quickSaleFeedback && (
+                      <div className="p-2.5 rounded-xl text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                        {quickSaleFeedback}
+                      </div>
+                    )}
+
+                    <button
+                      type="submit"
+                      disabled={isRecordingSale || !quickSaleAmount}
+                      className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold rounded-xl text-xs shadow-md shadow-blue-600/20 hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer mt-1"
+                    >
+                      <PlusCircle size={14} />
+                      {isRecordingSale ? "Recording..." : "Record Sale (+Add to Dashboard)"}
+                    </button>
+                  </form>
+                </div>
+
+                <div className="mt-4 pt-3 border-t border-gray-100 text-[11px] text-gray-400 font-medium">
+                  Instant inventory deduction and live KPI update
+                </div>
+              </div>
+            </div>
+
+            {/* 1-Click Connected Store Cards (Zero Technical Setup) */}
+            <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6">
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900">Connected Sales Channels</h3>
+                  <p className="text-xs text-gray-500">Your store and payment systems automatically send orders here</p>
+                </div>
+                <span className="text-xs text-emerald-600 font-bold flex items-center gap-1.5 self-start sm:self-auto">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> 3 Channels Active
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                {/* Shopify */}
+                <div className="p-5 bg-gradient-to-br from-emerald-50/60 to-white rounded-2xl border border-emerald-100 shadow-sm flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-2xl">🛍️</span>
+                        <div>
+                          <h4 className="text-sm font-extrabold text-gray-900">Shopify Store</h4>
+                          <p className="text-[10px] text-gray-500">E-Commerce Storefront</p>
+                        </div>
+                      </div>
+                      <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold rounded-full">
+                        Connected
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-600 leading-relaxed mb-4">
+                      Customer checkout orders are automatically captured and reflected on your dashboard every 15 minutes.
+                    </p>
+                  </div>
                   <button
-                    type="submit"
-                    disabled={!chatInput.trim() || isTyping}
-                    className="p-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white transition-colors cursor-pointer"
+                    onClick={handleSimulateStream}
+                    className="w-full py-2 bg-emerald-600/10 hover:bg-emerald-600 text-emerald-800 hover:text-white rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5"
                   >
-                    <Send className="w-4 h-4" />
+                    <Zap size={13} /> Test Shopify Order Sync
                   </button>
                 </div>
-              </form>
+
+                {/* Stripe Payments */}
+                <div className="p-5 bg-gradient-to-br from-indigo-50/60 to-white rounded-2xl border border-indigo-100 shadow-sm flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-2xl">💳</span>
+                        <div>
+                          <h4 className="text-sm font-extrabold text-gray-900">Stripe & Card Swipes</h4>
+                          <p className="text-[10px] text-gray-500">Credit & Debit Payments</p>
+                        </div>
+                      </div>
+                      <span className="px-2 py-0.5 bg-indigo-100 text-indigo-800 text-[10px] font-bold rounded-full">
+                        Connected
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-600 leading-relaxed mb-4">
+                      Credit and debit card transactions are synchronized into your daily revenue and net cashflow totals.
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleSimulateStream}
+                    className="w-full py-2 bg-indigo-600/10 hover:bg-indigo-600 text-indigo-800 hover:text-white rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    <Zap size={13} /> Test Payment Sync
+                  </button>
+                </div>
+
+                {/* Counter POS Terminal */}
+                <div className="p-5 bg-gradient-to-br from-blue-50/60 to-white rounded-2xl border border-blue-100 shadow-sm flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-2xl">📟</span>
+                        <div>
+                          <h4 className="text-sm font-extrabold text-gray-900">Square / Counter Register</h4>
+                          <p className="text-[10px] text-gray-500">Walk-in POS Hardware</p>
+                        </div>
+                      </div>
+                      <span className="px-2 py-0.5 bg-blue-100 text-blue-800 text-[10px] font-bold rounded-full">
+                        Listening
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-600 leading-relaxed mb-4">
+                      Walk-in counter register receipts automatically record to update inventory remaining in real-time.
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleSimulateStream}
+                    className="w-full py-2 bg-blue-600/10 hover:bg-blue-600 text-blue-800 hover:text-white rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    <Zap size={13} /> Test Counter Receipt Sync
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Non-Technical Sync History */}
+            <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
+                    <Clock size={18} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900">Recent Automatic Sync Log</h3>
+                    <p className="text-xs text-gray-500">Transactions received automatically from your business channels</p>
+                  </div>
+                </div>
+                <span className="text-xs text-gray-400 font-medium">Auto-updated</span>
+              </div>
+
+              <div className="divide-y divide-gray-100">
+                {(bamLive?.live_stream || []).slice(0, 5).map((item: any) => (
+                  <div key={item.id} className="py-3.5 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center text-sm font-bold">
+                        {item.source.includes("Shopify") ? "🛍️" : item.source.includes("Stripe") ? "💳" : item.source.includes("POS") ? "🛒" : "📊"}
+                      </div>
+                      <div>
+                        <p className="text-xs font-extrabold text-gray-900">{item.source}: {item.category}</p>
+                        <p className="text-[11px] text-gray-500">SKU: {item.product_sku} • Customer: {item.customer_id}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs font-extrabold text-emerald-700">+${item.amount.toLocaleString()}</p>
+                      <span className="text-[10px] text-gray-400 font-medium">{item.date}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}
 
-        {/* ====================================================================
-            RECORD LIVE TRANSACTION MODAL
-           ==================================================================== */}
-        {txModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div
-              onClick={() => setTxModalOpen(false)}
-              className="fixed inset-0 bg-slate-900/40 dark:bg-slate-950/70 backdrop-blur-[2px]"
-            />
-            <div className="relative z-10 w-full max-w-md rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden">
-              <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                <div>
-                  <h2 className="text-sm font-semibold text-slate-900 dark:text-white">
-                    Record Live Transaction
-                  </h2>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    Instantly updates KPIs, goal pace, and live velocity feed.
-                  </p>
+        {/* BAM Feature 4: Interactive Drill-Down Analysis Drawer / Modal */}
+        {isDrilldownOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white w-full max-w-4xl max-h-[85vh] rounded-3xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+              
+              {/* Modal Header */}
+              <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-slate-50 to-blue-50/50">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-blue-600 text-white rounded-2xl shadow-md shadow-blue-500/20">
+                    <Eye size={22} />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-xl font-extrabold text-gray-900">Drill-Down Root Cause Analysis</h3>
+                      <span className="px-2.5 py-0.5 bg-blue-100 text-blue-800 text-xs font-bold rounded-full">
+                        {drilldownCategory === "all" ? "All Categories" : drilldownCategory}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-0.5">Deep granular inspection of underlying transactions & business drivers</p>
+                  </div>
                 </div>
-                <button
-                  onClick={() => setTxModalOpen(false)}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                <button 
+                  onClick={() => setIsDrilldownOpen(false)} 
+                  className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors cursor-pointer"
                 >
-                  <X className="w-4 h-4" />
+                  <X size={20} />
                 </button>
               </div>
 
-              <form onSubmit={handleRecordTransaction} className="p-5 space-y-4">
-                {/* Type Selector */}
-                <div className="grid grid-cols-2 gap-2 p-1 rounded-lg bg-slate-100 dark:bg-slate-800">
-                  {[
-                    { id: "sale", label: "Revenue / Sale" },
-                    { id: "expense", label: "Operating Expense" },
-                  ].map((t) => (
-                    <button
-                      type="button"
-                      key={t.id}
-                      onClick={() =>
-                        setTxForm((prev) => ({
-                          ...prev,
-                          type: t.id,
-                          category:
-                            t.id === "sale" ? "Direct Store Sale" : "Logistics & Shipping",
-                        }))
-                      }
-                      className={`py-1.5 text-xs font-medium rounded-md transition-all cursor-pointer ${
-                        txForm.type === t.id
-                          ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
-                          : "text-slate-500 dark:text-slate-400"
-                      }`}
-                    >
-                      {t.label}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                      Amount (USD)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0.01"
-                      required
-                      placeholder="450.00"
-                      value={txForm.amount}
-                      onChange={(e) => setTxForm({ ...txForm, amount: e.target.value })}
-                      className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white tabular-nums focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                      {txForm.type === "sale" ? "Units Sold" : "Quantity"}
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      disabled={txForm.type === "expense"}
-                      value={txForm.units}
-                      onChange={(e) => setTxForm({ ...txForm, units: e.target.value })}
-                      className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white tabular-nums disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    Category
-                  </label>
-                  <select
-                    value={txForm.category}
-                    onChange={(e) => setTxForm({ ...txForm, category: e.target.value })}
-                    className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
-                  >
-                    {txForm.type === "sale" ? (
-                      <>
-                        <option>Direct Store Sale</option>
-                        <option>B2B Wholesale Invoice</option>
-                        <option>ErgoChair Pro Bundle</option>
-                        <option>Subscription Renewal</option>
-                      </>
-                    ) : (
-                      <>
-                        <option>Logistics & Shipping</option>
-                        <option>Inventory Restock (COGS)</option>
-                        <option>Paid Acquisition Ads</option>
-                        <option>SaaS & Cloud Infrastructure</option>
-                      </>
-                    )}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    Reference / Note (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g., POS Register #2 or Invoice #901"
-                    value={txForm.note}
-                    onChange={(e) => setTxForm({ ...txForm, note: e.target.value })}
-                    className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
-                  />
-                </div>
-
-                <div className="pt-2 flex items-center justify-end gap-2">
+              {/* Category Quick Filter Pills */}
+              <div className="px-6 py-3 border-b border-gray-100 bg-gray-50/70 flex items-center gap-2 overflow-x-auto">
+                <span className="text-xs font-bold text-gray-500 shrink-0">Filter Slice:</span>
+                {["all", ...inventoryData.map(i => i.category)].slice(0, 8).map((catName) => (
                   <button
-                    type="button"
-                    onClick={() => setTxModalOpen(false)}
-                    className="px-3.5 py-2 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                    key={catName}
+                    onClick={() => handleOpenDrilldown(catName)}
+                    className={`px-3 py-1 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+                      drilldownCategory === catName 
+                        ? 'bg-blue-600 text-white shadow-sm' 
+                        : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-100'
+                    }`}
                   >
-                    Cancel
+                    {catName === "all" ? "All Segments" : catName}
                   </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium shadow-xs transition-colors cursor-pointer"
-                  >
-                    Sync Transaction
-                  </button>
-                </div>
-              </form>
+                ))}
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-6 overflow-y-auto flex-1 space-y-6">
+                {isDrilldownLoading ? (
+                  <div className="py-20 flex flex-col items-center justify-center gap-3 text-gray-400">
+                    <RefreshCw size={32} className="animate-spin text-blue-600" />
+                    <p className="text-sm font-semibold">Running root cause analytics...</p>
+                  </div>
+                ) : drilldownData ? (
+                  <>
+                    {/* Automated Root Cause Diagnostics Box */}
+                    <div className="p-5 bg-gradient-to-br from-blue-50 to-indigo-50/60 rounded-2xl border border-blue-200/80">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Sparkles size={16} className="text-blue-600" />
+                        <h4 className="text-sm font-extrabold text-blue-950">Automated Root-Cause Diagnostic</h4>
+                      </div>
+                      <p className="text-xs text-blue-900 leading-relaxed font-medium">
+                        {drilldownData.root_cause_summary}
+                      </p>
+                    </div>
+
+                    {/* Metric Cards Row */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                      <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                        <p className="text-xs font-bold text-gray-500 mb-1">Segment Revenue</p>
+                        <p className="text-xl font-extrabold text-gray-900">${(drilldownData.total_revenue || 0).toLocaleString()}</p>
+                      </div>
+                      <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                        <p className="text-xs font-bold text-gray-500 mb-1">Average Order</p>
+                        <p className="text-xl font-extrabold text-gray-900">${(drilldownData.average_order || 0).toFixed(2)}</p>
+                      </div>
+                      <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                        <p className="text-xs font-bold text-gray-500 mb-1">Top Product SKU</p>
+                        <p className="text-sm font-extrabold text-blue-600 truncate">{drilldownData.top_sku || "N/A"}</p>
+                      </div>
+                      <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                        <p className="text-xs font-bold text-gray-500 mb-1">Key Customer</p>
+                        <p className="text-sm font-extrabold text-indigo-600 truncate">ID #{drilldownData.top_customer || "1"}</p>
+                      </div>
+                    </div>
+
+                    {/* Underlying Granular Transactions Table */}
+                    <div>
+                      <h4 className="text-sm font-extrabold text-gray-900 mb-3 flex items-center justify-between">
+                        <span>Underlying Transaction Records ({drilldownData.total_records})</span>
+                        <span className="text-xs text-gray-400 font-normal">Sorted by highest transaction value</span>
+                      </h4>
+                      <div className="border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-gray-50 text-gray-600 font-bold border-b border-gray-200">
+                            <tr>
+                              <th className="p-3">Date</th>
+                              <th className="p-3">Category</th>
+                              <th className="p-3">SKU</th>
+                              <th className="p-3">Customer</th>
+                              <th className="p-3">Source</th>
+                              <th className="p-3 text-right">Amount</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {(drilldownData.transactions || []).map((tx: any) => (
+                              <tr key={tx.id} className="hover:bg-blue-50/40 transition-colors">
+                                <td className="p-3 text-gray-600 font-medium">{tx.date}</td>
+                                <td className="p-3 font-bold text-gray-800">{tx.category}</td>
+                                <td className="p-3 font-mono text-gray-600">{tx.product_sku}</td>
+                                <td className="p-3 text-gray-600">#{tx.customer_id}</td>
+                                <td className="p-3">
+                                  <span className="px-2 py-0.5 bg-gray-100 text-gray-700 text-[10px] font-semibold rounded-md">
+                                    {tx.source}
+                                  </span>
+                                </td>
+                                <td className="p-3 text-right font-extrabold text-gray-900">
+                                  ${tx.amount.toLocaleString()}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </>
+                ) : null}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-4 border-t border-gray-100 bg-gray-50 flex items-center justify-between">
+                <span className="text-xs text-gray-500 font-medium">AI Diagnostic Engine • Real-time database slice</span>
+                <button 
+                  onClick={() => setIsDrilldownOpen(false)}
+                  className="px-5 py-2 bg-gray-900 hover:bg-black text-white text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                >
+                  Close Inspection
+                </button>
+              </div>
             </div>
-          </div>
-        )}
-
-        {/* ====================================================================
-            TOAST NOTIFICATION
-           ==================================================================== */}
-        {toast && (
-          <div className="fixed bottom-5 right-5 z-50 flex items-center gap-2.5 px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg text-xs font-medium text-slate-900 dark:text-white animate-in slide-in-from-bottom-2 duration-200">
-            {toast.tone === "success" ? (
-              <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-            ) : toast.tone === "warning" ? (
-              <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
-            ) : (
-              <Sparkles className="w-4 h-4 text-indigo-500 shrink-0" />
-            )}
-            <span>{toast.message}</span>
           </div>
         )}
       </div>
