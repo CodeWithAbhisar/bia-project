@@ -563,20 +563,27 @@ def get_bam_scorecards(
     # 1. Total revenue & target scorecard
     total_rev = db.query(func.sum(Transaction.amount)).filter(Transaction.user_id == user_id).scalar() or 0.0
     total_rev = float(total_rev)
+    total_tx_count = db.query(func.count(Transaction.id)).filter(Transaction.user_id == user_id).scalar() or 0
     
-    # Dynamic target: round up to nearest $10k bracket above current rev, or default to $50k
-    monthly_target = max(50000.0, (int(total_rev / 10000) + 1) * 10000.0)
-    target_pct = min(100.0, round((total_rev / monthly_target) * 100, 1)) if monthly_target > 0 else 0.0
-    
-    if target_pct >= 85:
-        target_status = "on_track"
-        target_color = "emerald"
-    elif target_pct >= 50:
-        target_status = "moderate"
-        target_color = "amber"
+    # If no data exists, keep status as pending/0% instead of guessing
+    if total_tx_count == 0 or total_rev == 0:
+        monthly_target = 50000.0
+        target_pct = 0.0
+        target_status = "pending"
+        target_color = "slate"
     else:
-        target_status = "behind"
-        target_color = "rose"
+        monthly_target = max(50000.0, (int(total_rev / 10000) + 1) * 10000.0)
+        target_pct = min(100.0, round((total_rev / monthly_target) * 100, 1)) if monthly_target > 0 else 0.0
+        
+        if target_pct >= 85:
+            target_status = "on_track"
+            target_color = "emerald"
+        elif target_pct >= 50:
+            target_status = "moderate"
+            target_color = "amber"
+        else:
+            target_status = "behind"
+            target_color = "rose"
 
     # 2. Inventory Health Index
     categories = db.query(
@@ -584,30 +591,38 @@ def get_bam_scorecards(
         func.count(Transaction.id).label('sold')
     ).filter(Transaction.user_id == user_id).group_by(Transaction.category).all()
     
-    low_stock_count = 0
-    out_of_stock_count = 0
-    for cat in categories:
-        remaining = max(0, 500 - cat.sold)
-        if remaining <= 0:
-            out_of_stock_count += 1
-        elif remaining < 50:
-            low_stock_count += 1
-            
-    if out_of_stock_count > 0:
-        inv_status = "critical"
-        inv_score = 45
-        inv_color = "rose"
-        inv_label = f"{out_of_stock_count} Category Out of Stock"
-    elif low_stock_count > 0:
-        inv_status = "warning"
-        inv_score = 75
-        inv_color = "amber"
-        inv_label = f"{low_stock_count} Category Low Stock"
+    if not categories:
+        inv_status = "empty"
+        inv_score = 0
+        inv_color = "slate"
+        inv_label = "No Data"
+        low_stock_count = 0
+        out_of_stock_count = 0
     else:
-        inv_status = "optimal"
-        inv_score = 98
-        inv_color = "emerald"
-        inv_label = "Optimal Levels"
+        low_stock_count = 0
+        out_of_stock_count = 0
+        for cat in categories:
+            remaining = max(0, 500 - cat.sold)
+            if remaining <= 0:
+                out_of_stock_count += 1
+            elif remaining < 50:
+                low_stock_count += 1
+                
+        if out_of_stock_count > 0:
+            inv_status = "critical"
+            inv_score = 45
+            inv_color = "rose"
+            inv_label = f"{out_of_stock_count} Category Out of Stock"
+        elif low_stock_count > 0:
+            inv_status = "warning"
+            inv_score = 75
+            inv_color = "amber"
+            inv_label = f"{low_stock_count} Category Low Stock"
+        else:
+            inv_status = "optimal"
+            inv_score = 98
+            inv_color = "emerald"
+            inv_label = "Optimal Levels"
 
     # 3. Category Distribution for Donut Chart
     cat_sales = db.query(

@@ -5,7 +5,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 const API_BASE = "";
 import axios from "axios";
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
-import { UploadCloud, LayoutDashboard, DollarSign, Package, MessageSquare, Bell, Send, CheckCircle, AlertTriangle, Info, LogOut, Search, X, Copy, Check, Sparkles, TrendingUp, Database, FileText, User, Trash2, Menu, Mail, Activity, RefreshCw, Plug, Layers, Zap, ShieldAlert, ArrowUpRight, ArrowDownRight, Eye, ChevronRight, Sliders, CheckCircle2, AlertCircle, Store, CreditCard, PlusCircle, ArrowRight, Clock, BarChart3, PieChart as PieChartIcon } from "lucide-react";
+import { UploadCloud, LayoutDashboard, DollarSign, Package, MessageSquare, Bell, Send, CheckCircle, AlertTriangle, Info, LogOut, Search, X, Copy, Check, Sparkles, TrendingUp, Database, FileText, User, Trash2, Menu, Mail, Activity, RefreshCw, Plug, Layers, Zap, ShieldAlert, ArrowUpRight, ArrowDownRight, Eye, ChevronRight, Sliders, CheckCircle2, AlertCircle, Store, CreditCard, PlusCircle, ArrowRight, Clock } from "lucide-react";
 
 export default function App() {
   const [token, setToken] = useState<string | null>(() => {
@@ -270,13 +270,16 @@ export default function App() {
       setTimeout(() => setStreamToast(null), 5000);
       await syncBAMPulse(false);
       const [oRes, cRes, iRes] = await Promise.all([
-        axios.get(`${API_BASE}/api/overview`, config).catch(() => null),
-        axios.get(`${API_BASE}/api/cashflow`, config).catch(() => null),
+        axios.get(`${API_BASE}/api/analytics/overview`, config).catch(() => null),
+        axios.get(`${API_BASE}/api/analytics/cashflow`, config).catch(() => null),
         axios.get(`${API_BASE}/api/inventory`, config).catch(() => null),
       ]);
       if (oRes?.data) setOverviewData(oRes.data);
       if (cRes?.data) setCashflowData(cRes.data);
-      if (iRes?.data) setInventoryData(iRes.data);
+      if (iRes?.data?.inventory) {
+        setInventoryData(iRes.data.inventory || []);
+        if (iRes.data.metrics) setInventoryMetrics(iRes.data.metrics);
+      }
     } catch {
       setStreamToast({
         message: "Simulation failed. Please verify network.",
@@ -295,13 +298,16 @@ export default function App() {
       await axios.post(`${API_BASE}/api/bam/seed-demo-data`, {}, config);
       await syncBAMPulse(false);
       const [oRes, cRes, iRes] = await Promise.all([
-        axios.get(`${API_BASE}/api/overview`, config).catch(() => null),
-        axios.get(`${API_BASE}/api/cashflow`, config).catch(() => null),
+        axios.get(`${API_BASE}/api/analytics/overview`, config).catch(() => null),
+        axios.get(`${API_BASE}/api/analytics/cashflow`, config).catch(() => null),
         axios.get(`${API_BASE}/api/inventory`, config).catch(() => null),
       ]);
       if (oRes?.data) setOverviewData(oRes.data);
       if (cRes?.data) setCashflowData(cRes.data);
-      if (iRes?.data) setInventoryData(iRes.data);
+      if (iRes?.data?.inventory) {
+        setInventoryData(iRes.data.inventory || []);
+        if (iRes.data.metrics) setInventoryMetrics(iRes.data.metrics);
+      }
       setStreamToast({
         message: "⚡ Sample Store Activated: 25 live sales & inventory metrics loaded!",
         type: "success"
@@ -1581,9 +1587,10 @@ export default function App() {
                   <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
                     bamScorecards?.target_scorecard?.color === 'emerald' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
                     bamScorecards?.target_scorecard?.color === 'amber' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
-                    'bg-rose-50 text-rose-700 border border-rose-200'
+                    bamScorecards?.target_scorecard?.color === 'rose' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
+                    'bg-slate-50 text-slate-600 border border-slate-200'
                   }`}>
-                    {bamScorecards?.target_scorecard?.percentage || 85}% of Goal
+                    {bamScorecards?.target_scorecard?.percentage ?? 0}% of Goal
                   </span>
                 </div>
                 <div className="flex items-baseline justify-between mb-2">
@@ -1597,7 +1604,7 @@ export default function App() {
                 <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
                   <div 
                     className="bg-gradient-to-r from-blue-600 to-indigo-600 h-2.5 rounded-full transition-all duration-1000"
-                    style={{ width: `${Math.min(100, bamScorecards?.target_scorecard?.percentage || 85)}%` }}
+                    style={{ width: `${Math.min(100, bamScorecards?.target_scorecard?.percentage ?? 0)}%` }}
                   ></div>
                 </div>
                 <p className="text-[11px] text-gray-500 mt-2.5 flex items-center gap-1 font-medium">
@@ -1612,14 +1619,15 @@ export default function App() {
                   <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
                     bamScorecards?.inventory_scorecard?.color === 'emerald' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
                     bamScorecards?.inventory_scorecard?.color === 'amber' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
-                    'bg-rose-50 text-rose-700 border border-rose-200'
+                    bamScorecards?.inventory_scorecard?.color === 'rose' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
+                    'bg-slate-50 text-slate-600 border border-slate-200'
                   }`}>
-                    {bamScorecards?.inventory_scorecard?.label || "Optimal"}
+                    {bamScorecards?.inventory_scorecard?.label || "No Data"}
                   </span>
                 </div>
                 <div className="flex items-baseline justify-between mb-2">
                   <h4 className="text-2xl font-extrabold text-gray-900">
-                    {bamScorecards?.inventory_scorecard?.score || 95}<span className="text-sm text-gray-400 font-medium">/100</span>
+                    {bamScorecards?.inventory_scorecard?.score ?? 0}<span className="text-sm text-gray-400 font-medium">/100</span>
                   </h4>
                   <span className="text-xs text-gray-400 font-semibold">
                     {bamScorecards?.inventory_scorecard?.low_stock_count || 0} Low Stock
@@ -1630,9 +1638,10 @@ export default function App() {
                     className={`h-2.5 rounded-full transition-all duration-1000 ${
                       bamScorecards?.inventory_scorecard?.color === 'rose' ? 'bg-rose-500' :
                       bamScorecards?.inventory_scorecard?.color === 'amber' ? 'bg-amber-500' :
-                      'bg-emerald-500'
+                      bamScorecards?.inventory_scorecard?.color === 'emerald' ? 'bg-emerald-500' :
+                      'bg-slate-300'
                     }`}
-                    style={{ width: `${bamScorecards?.inventory_scorecard?.score || 95}%` }}
+                    style={{ width: `${bamScorecards?.inventory_scorecard?.score ?? 0}%` }}
                   ></div>
                 </div>
                 <p className="text-[11px] text-gray-500 mt-2.5 flex items-center gap-1 font-medium">
@@ -1650,14 +1659,17 @@ export default function App() {
                 </div>
                 <div className="flex items-baseline justify-between mb-2">
                   <h4 className="text-2xl font-extrabold text-gray-900">
-                    {bamLive?.total_transactions || totalUnitsSold} <span className="text-sm text-gray-400 font-medium">Events</span>
+                    {(bamLive?.total_transactions !== undefined ? bamLive.total_transactions : totalUnitsSold) || 0} <span className="text-sm text-gray-400 font-medium">Events</span>
                   </h4>
                   <span className="text-xs text-gray-400 font-semibold">
-                    ~{bamLive?.recent_velocity_per_day || 2.4}/day velocity
+                    ~{bamLive?.recent_velocity_per_day !== undefined && bamLive.recent_velocity_per_day !== null ? bamLive.recent_velocity_per_day : 0}/day velocity
                   </span>
                 </div>
                 <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
-                  <div className="bg-blue-500 h-2.5 rounded-full w-[70%]"></div>
+                  <div 
+                    className="bg-blue-500 h-2.5 rounded-full transition-all duration-500"
+                    style={{ width: `${(bamLive?.total_transactions || 0) > 0 ? 70 : 0}%` }}
+                  ></div>
                 </div>
                 <p className="text-[11px] text-gray-500 mt-2.5 flex items-center gap-1 font-medium">
                   <Zap size={13} className="text-yellow-500" /> Connected to Webhooks & CSV pipeline
@@ -1674,7 +1686,7 @@ export default function App() {
                     <p className="text-sm text-gray-500">Revenue trajectory over time</p>
                   </div>
                 </div>
-                {(overviewData.revenue_trend || []).length > 0 ? (
+                {(overviewData.revenue_trend || []).length > 0 && Number(overviewData?.kpis?.total_revenue || 0) > 0 ? (
                   <div className="flex-1 w-full min-h-0 overflow-x-auto overflow-y-hidden">
                     <div className="w-full h-full outline-none focus:outline-none select-none">
                       <ResponsiveContainer width="100%" height="100%" className="outline-none focus:outline-none">
@@ -1736,7 +1748,7 @@ export default function App() {
                     <Sliders size={12} /> Clickable
                   </span>
                 </div>
-                {(processedInventoryData || []).length > 0 ? (
+                {(processedInventoryData || []).length > 0 && processedInventoryData.some((item: any) => Number(item?.sold || 0) > 0) ? (
                   <div className="flex-1 w-full min-h-0 overflow-x-auto overflow-y-hidden">
                     <div className="w-full h-full outline-none focus:outline-none select-none">
                       <ResponsiveContainer width="100%" height="100%" className="outline-none focus:outline-none">
@@ -1774,7 +1786,7 @@ export default function App() {
                 ) : (
                   <div className="flex-1 flex flex-col items-center justify-center text-center p-6 border-2 border-dashed border-slate-200/90 rounded-2xl bg-slate-50/60">
                     <div className="w-14 h-14 rounded-2xl bg-purple-100 text-purple-600 flex items-center justify-center mb-3 shadow-sm">
-                      <BarChart3 size={26} />
+                      <Layers size={26} />
                     </div>
                     <h4 className="text-sm font-bold text-slate-800 mb-1">No Category Sales Yet</h4>
                     <p className="text-xs text-slate-500 max-w-xs mb-4">
@@ -1818,7 +1830,7 @@ export default function App() {
                   </button>
                 </div>
                 <div className="flex-1 w-full min-h-0 flex items-center justify-center">
-                  {(bamScorecards?.category_distribution || []).length > 0 ? (
+                  {(bamScorecards?.category_distribution || []).length > 0 && bamScorecards.category_distribution.some((item: any) => Number(item?.value || 0) > 0) ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie
@@ -1847,7 +1859,7 @@ export default function App() {
                   ) : (
                     <div className="w-full h-full flex flex-col items-center justify-center text-center p-6 border-2 border-dashed border-slate-200/90 rounded-2xl bg-slate-50/60">
                       <div className="w-14 h-14 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center mb-3 shadow-sm">
-                        <PieChartIcon size={26} />
+                        <Package size={26} />
                       </div>
                       <h4 className="text-sm font-bold text-slate-800 mb-1">Product Distribution Pending</h4>
                       <p className="text-xs text-slate-500 max-w-xs mb-4">
