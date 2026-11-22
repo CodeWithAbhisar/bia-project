@@ -669,38 +669,41 @@ export default function App() {
 
   if (!token) {
     return (
-      <div className="flex min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50 items-start pt-[12vh] justify-center p-4 relative overflow-hidden">
-        {/* Abstract background shapes */}
-        <div className="absolute top-0 -left-4 w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-[80px] opacity-60 animate-blob"></div>
-        <div className="absolute top-0 -right-4 w-96 h-96 bg-cyan-200 rounded-full mix-blend-multiply filter blur-[80px] opacity-60 animate-blob animation-delay-2000"></div>
-        <div className="absolute -bottom-8 left-20 w-96 h-96 bg-indigo-300 rounded-full mix-blend-multiply filter blur-[80px] opacity-60 animate-blob animation-delay-4000"></div>
+      <div className="flex min-h-screen bg-slate-950 items-center justify-center p-4 relative overflow-hidden">
+        {/* Modern SaaS background glow meshes */}
+        <div className="absolute -top-40 -left-40 w-[600px] h-[600px] bg-blue-600/20 rounded-full filter blur-[140px] pointer-events-none"></div>
+        <div className="absolute -bottom-40 -right-40 w-[600px] h-[600px] bg-indigo-600/20 rounded-full filter blur-[140px] pointer-events-none"></div>
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-purple-600/10 rounded-full filter blur-[160px] pointer-events-none"></div>
+
+        {/* Ambient Subtle Grid */}
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff08_1px,transparent_1px),linear-gradient(to_bottom,#ffffff08_1px,transparent_1px)] bg-[size:32px_32px] pointer-events-none"></div>
         
-        <div className="glass-card p-10 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] w-full max-w-[420px] relative z-10">
+        <div className="bg-slate-900/80 backdrop-blur-2xl border border-white/10 p-8 sm:p-10 rounded-3xl shadow-[0_20px_70px_rgba(0,0,0,0.5)] w-full max-w-[440px] relative z-10 text-white animate-in fade-in duration-500">
           {isOtpStep ? (
             <div className="flex flex-col animate-in fade-in duration-300">
               <div className="flex flex-col items-center justify-center mb-6">
-                <div className="bg-blue-600/10 text-blue-600 p-3.5 rounded-2xl mb-4">
+                <div className="bg-blue-600/20 border border-blue-500/30 text-blue-400 p-4 rounded-2xl mb-4 shadow-lg shadow-blue-500/20">
                   <Mail size={32} />
                 </div>
-                <h2 className="text-2xl font-extrabold text-gray-900 tracking-tight text-center">
+                <h2 className="text-2xl font-extrabold text-white tracking-tight text-center">
                   Verify Your Email
                 </h2>
-                <p className="text-gray-500 mt-2 text-sm text-center leading-relaxed">
+                <p className="text-slate-400 mt-2 text-xs text-center leading-relaxed">
                   We sent a 6-digit verification code to<br />
-                  <span className="font-semibold text-gray-800">{email}</span>
+                  <span className="font-semibold text-white">{email}</span>
                 </p>
               </div>
 
               {authError && (
-                <div className="mb-5 p-3 bg-red-50 border border-red-200 text-red-600 rounded-lg text-sm text-center font-medium flex items-center justify-center gap-2">
-                  <AlertTriangle size={16} />
+                <div className="mb-5 p-3 bg-rose-500/10 border border-rose-500/30 text-rose-400 rounded-xl text-xs text-center font-medium flex items-center justify-center gap-2">
+                  <AlertTriangle size={15} />
                   {authError}
                 </div>
               )}
 
               <form onSubmit={handleVerifyOtp} className="flex flex-col gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-2 text-center">
+                  <label className="block text-xs font-semibold text-slate-300 mb-2 text-center">
                     Enter Verification Code
                   </label>
                   <input
@@ -709,7 +712,7 @@ export default function App() {
                     placeholder="123456"
                     value={otpCode}
                     onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
-                    className="w-full text-center text-3xl font-extrabold tracking-[10px] font-mono p-3 border border-gray-300 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all bg-gray-50/50 focus:bg-white"
+                    className="w-full text-center text-3xl font-extrabold tracking-[10px] font-mono p-3 bg-slate-800/80 border border-slate-700 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-white placeholder-slate-600"
                     required
                     autoFocus
                   />
@@ -718,9 +721,9 @@ export default function App() {
                 <button
                   type="submit"
                   disabled={isSendingOtp}
-                  className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold py-3 px-4 rounded-lg transition-all shadow-lg shadow-blue-600/30 hover:shadow-blue-600/40 mt-1 cursor-pointer"
+                  className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 text-white font-bold py-3.5 px-4 rounded-2xl transition-all shadow-lg shadow-blue-600/30 hover:shadow-blue-600/40 mt-1 cursor-pointer text-sm"
                 >
-                  {isSendingOtp ? "Verifying..." : "Verify & Complete Registration"}
+                  {isSendingOtp ? "Verifying Code..." : "Verify & Launch Dashboard"}
                 </button>
               </form>
 
@@ -729,7 +732,7 @@ export default function App() {
                   type="button"
                   disabled={resendCooldown > 0 || isSendingOtp}
                   onClick={handleResendOtp}
-                  className="font-semibold text-blue-600 hover:text-blue-700 disabled:text-gray-400 transition-colors cursor-pointer"
+                  className="font-semibold text-blue-400 hover:text-blue-300 disabled:text-slate-500 transition-colors cursor-pointer"
                 >
                   {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : "Didn't receive code? Resend"}
                 </button>
@@ -740,7 +743,7 @@ export default function App() {
                     setOtpCode("");
                     setAuthError("");
                   }}
-                  className="text-gray-500 hover:text-gray-700 underline transition-colors cursor-pointer"
+                  className="text-slate-400 hover:text-slate-200 underline transition-colors cursor-pointer"
                 >
                   Edit registration info
                 </button>
@@ -748,19 +751,49 @@ export default function App() {
             </div>
           ) : (
             <>
-          <div className="flex flex-col items-center justify-center mb-8">
-            <div className="bg-blue-600 p-3 rounded-xl mb-4 shadow-lg shadow-blue-600/30">
-              <LayoutDashboard className="text-white" size={28} />
+          {/* Brand Header */}
+          <div className="flex flex-col items-center justify-center mb-6 text-center">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-500 flex items-center justify-center mb-4 shadow-xl shadow-blue-500/30 border border-white/20">
+              <Sparkles size={28} className="text-white" />
             </div>
-            <h2 className="text-2xl font-extrabold text-gray-900 tracking-tight">
-              {authMode === "login" ? "Welcome back" : "Create your account"}
-            </h2>
-            <p className="text-gray-500 mt-2 text-sm text-center">
-              {authMode === "login" ? "Enter your details to access your dashboard." : "Start exploring your business data today."}
+            <div className="flex items-center gap-2 mb-1">
+              <h2 className="text-2xl font-extrabold text-white tracking-tight">BIA Platform</h2>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                PRO
+              </span>
+            </div>
+            <p className="text-slate-400 text-xs font-medium">
+              Real-Time Business Activity Monitoring & Intelligence
             </p>
           </div>
+
+          {/* Segmented Sign In / Sign Up Switcher */}
+          <div className="grid grid-cols-2 p-1 bg-slate-800/80 rounded-2xl border border-slate-700/80 mb-6">
+            <button
+              type="button"
+              onClick={() => { setAuthMode("login"); setAuthError(""); }}
+              className={`py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+                authMode === "login" 
+                  ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/20" 
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              Sign In
+            </button>
+            <button
+              type="button"
+              onClick={() => { setAuthMode("register"); setAuthError(""); }}
+              className={`py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+                authMode === "register" 
+                  ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/20" 
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              Create Account
+            </button>
+          </div>
           
-          <div className="flex flex-col gap-3 mb-6">
+          <div className="flex flex-col gap-3 mb-5">
             <div id="google-signin-btn" className="w-full flex justify-center min-h-[44px]">
               <button 
                 type="button" 
@@ -772,78 +805,73 @@ export default function App() {
                     alert("Google Sign-In is initializing. Please try again in a moment.");
                   }
                 }} 
-                className="flex items-center justify-center gap-3 w-full p-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium text-gray-700"
+                className="flex items-center justify-center gap-3 w-full p-3 bg-slate-800/90 border border-slate-700/80 rounded-xl hover:bg-slate-700/80 transition-all font-semibold text-white text-xs cursor-pointer shadow-sm"
               >
-                <svg className="w-5 h-5" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+                <svg className="w-4 h-4" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
                 Continue with Google
               </button>
             </div>
           </div>
 
-          <div className="relative mb-6">
-            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200"></div></div>
-            <div className="relative flex justify-center text-sm"><span className="px-2 bg-white text-gray-400">Or continue with email</span></div>
+          <div className="relative mb-5">
+            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-800"></div></div>
+            <div className="relative flex justify-center text-xs"><span className="px-3 bg-slate-900 text-slate-500 font-medium">Or continue with email</span></div>
           </div>
 
-          {authError && <div className="mb-5 p-3 bg-red-50 border border-red-200 text-red-600 rounded-lg text-sm text-center font-medium flex items-center justify-center gap-2"><AlertTriangle size={16}/>{authError}</div>}
+          {authError && (
+            <div className="mb-4 p-3 bg-rose-500/10 border border-rose-500/30 text-rose-400 rounded-xl text-xs text-center font-medium flex items-center justify-center gap-2">
+              <AlertTriangle size={15}/>{authError}
+            </div>
+          )}
           
-          <form onSubmit={handleAuth} className="flex flex-col gap-4">
+          <form onSubmit={handleAuth} className="flex flex-col gap-3.5">
             
             {authMode === "register" && (
               <>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Full Name</label>
-                  <input type="text" placeholder="John Doe" value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full p-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all" required />
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Full Name</label>
+                  <input type="text" placeholder="John Doe" value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full p-3 bg-slate-800/80 border border-slate-700/80 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-white text-xs placeholder-slate-500" required />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Company Name</label>
-                  <input type="text" placeholder="Acme Corp" value={company} onChange={(e) => setCompany(e.target.value)} className="w-full p-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all" required />
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Company Name</label>
+                  <input type="text" placeholder="Acme Inc" value={company} onChange={(e) => setCompany(e.target.value)} className="w-full p-3 bg-slate-800/80 border border-slate-700/80 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-white text-xs placeholder-slate-500" required />
                 </div>
               </>
             )}
 
             <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1">Email Address</label>
-              <input type="email" placeholder="you@company.com" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full p-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all" required />
+              <label className="block text-xs font-semibold text-slate-300 mb-1">Work Email</label>
+              <input type="email" placeholder="you@company.com" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full p-3 bg-slate-800/80 border border-slate-700/80 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-white text-xs placeholder-slate-500" required />
             </div>
             
             <div>
               <div className="flex justify-between items-center mb-1">
-                <label className="block text-xs font-semibold text-gray-700">Password</label>
-                {authMode === "login" && <a href="#" className="text-xs font-semibold text-blue-600 hover:text-blue-700">Forgot password?</a>}
+                <label className="block text-xs font-semibold text-slate-300">Password</label>
+                {authMode === "login" && <a href="#" className="text-xs font-semibold text-blue-400 hover:text-blue-300">Forgot?</a>}
               </div>
-              <input type="password" placeholder="********" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full p-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all" required />
+              <input type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full p-3 bg-slate-800/80 border border-slate-700/80 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-white text-xs placeholder-slate-500" required />
             </div>
 
             {authMode === "register" && (
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Confirm Password</label>
-                <input type="password" placeholder="********" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="w-full p-2.5 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all" required />
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Confirm Password</label>
+                <input type="password" placeholder="••••••••" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="w-full p-3 bg-slate-800/80 border border-slate-700/80 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-white text-xs placeholder-slate-500" required />
               </div>
             )}
 
             {authMode === "register" && (
               <div className="flex items-start gap-2 mt-1">
-                <input type="checkbox" id="terms" checked={termsAccepted} onChange={(e) => setTermsAccepted(e.target.checked)} className="mt-1 rounded border-gray-300 text-blue-600 focus:ring-blue-500" required />
-                <label htmlFor="terms" className="text-xs text-gray-600 leading-relaxed">
-                  I agree to the <a href="#" className="text-blue-600 hover:underline">Terms of Service</a> and <a href="#" className="text-blue-600 hover:underline">Privacy Policy</a>.
+                <input type="checkbox" id="terms" checked={termsAccepted} onChange={(e) => setTermsAccepted(e.target.checked)} className="mt-0.5 rounded border-slate-700 text-blue-600 focus:ring-blue-500 bg-slate-800" required />
+                <label htmlFor="terms" className="text-[11px] text-slate-400 leading-relaxed">
+                  I agree to the <a href="#" className="text-blue-400 hover:underline">Terms of Service</a> and <a href="#" className="text-blue-400 hover:underline">Privacy Policy</a>.
                 </label>
               </div>
             )}
 
-            <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-all shadow-lg shadow-blue-600/30 hover:shadow-blue-600/40 mt-2">
-              {authMode === "login" ? "Sign In" : "Create Account"}
+            <button type="submit" className="w-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold py-3.5 px-4 rounded-xl transition-all shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 mt-2 text-xs cursor-pointer">
+              {authMode === "login" ? "Sign In to Dashboard" : "Create Account & Verify OTP"}
             </button>
           </form>
-          
-          <div className="text-center mt-8">
-            <p className="text-sm text-gray-600">
-              {authMode === "login" ? "Don't have an account?" : "Already have an account?"}
-              <button onClick={() => { setAuthMode(authMode === "login" ? "register" : "login"); setIsOtpStep(false); setOtpCode(""); setAuthError(""); setPassword(""); setConfirmPassword(""); }} className="ml-1 font-bold text-blue-600 hover:text-blue-700 transition-colors">
-                {authMode === "login" ? "Sign up" : "Log in"}
-              </button>
-            </p>
-          </div>
             </>
           )}
         </div>
@@ -857,50 +885,190 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen bg-slate-50 text-black relative overflow-hidden">
-        {/* Subtle Dashboard Background Shapes */}
-        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-blue-300/30 rounded-full mix-blend-multiply filter blur-[120px] animate-blob pointer-events-none"></div>
-        <div className="absolute bottom-0 left-64 w-[600px] h-[600px] bg-purple-300/30 rounded-full mix-blend-multiply filter blur-[120px] animate-blob animation-delay-4000 pointer-events-none"></div>
+    <div className="flex h-screen bg-slate-900 text-slate-100 relative overflow-hidden font-sans">
       {/* Mobile Top Nav */}
-      <div className="md:hidden absolute top-0 left-0 right-0 h-16 bg-white border-b border-gray-100 flex items-center justify-between px-6 z-30 shadow-sm">
-        <h1 className="text-xl font-bold text-slate-900">BI Platform</h1>
-        <button onClick={() => setIsMobileMenuOpen(true)} className="text-slate-900 p-1">
-          <Menu size={24} />
+      <div className="md:hidden absolute top-0 left-0 right-0 h-16 bg-slate-900/90 backdrop-blur-xl border-b border-slate-800 flex items-center justify-between px-6 z-30 shadow-sm">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center font-bold text-white text-xs">
+            ⚡
+          </div>
+          <span className="font-bold text-white text-sm">BIA Platform</span>
+        </div>
+        <button onClick={() => setIsMobileMenuOpen(true)} className="text-slate-300 hover:text-white p-1">
+          <Menu size={22} />
         </button>
       </div>
 
       {/* Mobile Overlay */}
       {isMobileMenuOpen && (
         <div 
-          className="md:hidden fixed inset-0 bg-slate-900/50 z-40 backdrop-blur-sm transition-opacity"
+          className="md:hidden fixed inset-0 bg-slate-950/80 z-40 backdrop-blur-md transition-opacity"
           onClick={() => setIsMobileMenuOpen(false)}
         />
       )}
 
-      {/* Sidebar */}
-      <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-slate-900/95 backdrop-blur-xl border-r border-white/10 text-white p-6 flex flex-col h-full transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="flex items-center justify-between mb-8">
-          <h1 className="text-xl font-bold">BI Platform</h1>
-          <button onClick={() => setIsMobileMenuOpen(false)} className="md:hidden text-gray-400 hover:text-white">
-            <X size={24} />
+      {/* Enterprise SaaS Sidebar */}
+      <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-slate-950 border-r border-slate-800/80 text-white p-5 flex flex-col h-full transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        {/* Brand Header */}
+        <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-800/80">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-500 flex items-center justify-center font-extrabold text-white shadow-lg shadow-blue-500/20 border border-white/20">
+              <Sparkles size={20} className="text-white" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-extrabold text-sm tracking-tight text-white">BIA Platform</span>
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">PRO</span>
+              </div>
+              <p className="text-[10px] text-slate-400 font-medium">Business Activity Monitor</p>
+            </div>
+          </div>
+          <button onClick={() => setIsMobileMenuOpen(false)} className="md:hidden text-slate-400 hover:text-white">
+            <X size={20} />
           </button>
         </div>
-        <div className="flex flex-col gap-6 flex-1">
-          <button onClick={() => { setActiveTab("upload"); setIsMobileMenuOpen(false); }} className={`flex items-center gap-3 hover:text-blue-400 ${activeTab === 'upload' ? 'text-blue-400' : ''}`}><UploadCloud size={20}/> Upload Data</button>
-          <button onClick={() => { setActiveTab("dashboard"); setIsMobileMenuOpen(false); }} className={`flex items-center gap-3 hover:text-blue-400 ${activeTab === 'dashboard' ? 'text-blue-400' : ''}`}><LayoutDashboard size={20}/> Dashboard</button>
-          <button onClick={() => { setActiveTab("cashflow"); setIsMobileMenuOpen(false); }} className={`flex items-center gap-3 hover:text-blue-400 ${activeTab === 'cashflow' ? 'text-blue-400' : ''}`}><DollarSign size={20}/> Cashflow</button>
-          <button onClick={() => { setActiveTab("chat"); setIsMobileMenuOpen(false); }} className={`flex items-center gap-3 hover:text-blue-400 ${activeTab === 'chat' ? 'text-blue-400' : ''}`}><MessageSquare size={20}/> AI Chat</button>
-          <button onClick={() => { setActiveTab("inventory"); setIsMobileMenuOpen(false); }} className={`flex items-center gap-3 hover:text-blue-400 ${activeTab === 'inventory' ? 'text-blue-400' : ''}`}><Package size={20}/> Inventory</button>
-          <button onClick={() => { setActiveTab("insights"); setIsMobileMenuOpen(false); }} className={`flex items-center gap-3 hover:text-blue-400 ${activeTab === 'insights' ? 'text-blue-400' : ''}`}><Bell size={20}/> Insights</button>
-          <button onClick={() => { setActiveTab("integrations"); setIsMobileMenuOpen(false); }} className={`flex items-center gap-3 hover:text-blue-400 ${activeTab === 'integrations' ? 'text-blue-400' : ''}`}><Plug size={20}/> Integrations</button>
-          <button onClick={() => { setActiveTab("profile"); setIsMobileMenuOpen(false); }} className={`flex items-center gap-3 hover:text-blue-400 ${activeTab === 'profile' ? 'text-blue-400' : ''}`}><User size={20}/> Account</button>
+
+        {/* Grouped Sidebar Navigation */}
+        <div className="flex flex-col gap-6 flex-1 overflow-y-auto pr-1">
+          {/* Group 1: Monitoring & KPIs */}
+          <div>
+            <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 mb-2 px-3">
+              Monitoring & Analytics
+            </p>
+            <div className="flex flex-col gap-1">
+              <button 
+                onClick={() => { setActiveTab("dashboard"); setIsMobileMenuOpen(false); }} 
+                className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-semibold text-xs transition-all w-full text-left cursor-pointer ${
+                  activeTab === 'dashboard' 
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25' 
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+                }`}
+              >
+                <LayoutDashboard size={17} /> Overview Dashboard
+              </button>
+
+              <button 
+                onClick={() => { setActiveTab("cashflow"); setIsMobileMenuOpen(false); }} 
+                className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-semibold text-xs transition-all w-full text-left cursor-pointer ${
+                  activeTab === 'cashflow' 
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25' 
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+                }`}
+              >
+                <DollarSign size={17} /> Cashflow Analytics
+              </button>
+
+              <button 
+                onClick={() => { setActiveTab("inventory"); setIsMobileMenuOpen(false); }} 
+                className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-semibold text-xs transition-all w-full text-left cursor-pointer ${
+                  activeTab === 'inventory' 
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25' 
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+                }`}
+              >
+                <Package size={17} /> Inventory Health
+              </button>
+
+              <button 
+                onClick={() => { setActiveTab("insights"); setIsMobileMenuOpen(false); }} 
+                className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-semibold text-xs transition-all w-full text-left cursor-pointer ${
+                  activeTab === 'insights' 
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25' 
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+                }`}
+              >
+                <Bell size={17} /> Proactive Insights
+              </button>
+            </div>
+          </div>
+
+          {/* Group 2: Automation & Tools */}
+          <div>
+            <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 mb-2 px-3">
+              Automations & Tools
+            </p>
+            <div className="flex flex-col gap-1">
+              <button 
+                onClick={() => { setActiveTab("integrations"); setIsMobileMenuOpen(false); }} 
+                className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-semibold text-xs transition-all w-full text-left cursor-pointer ${
+                  activeTab === 'integrations' 
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25' 
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+                }`}
+              >
+                <Plug size={17} /> Store Integrations
+              </button>
+
+              <button 
+                onClick={() => { setActiveTab("chat"); setIsMobileMenuOpen(false); }} 
+                className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-semibold text-xs transition-all w-full text-left cursor-pointer ${
+                  activeTab === 'chat' 
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25' 
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+                }`}
+              >
+                <MessageSquare size={17} /> AI Copilot Assistant
+              </button>
+
+              <button 
+                onClick={() => { setActiveTab("upload"); setIsMobileMenuOpen(false); }} 
+                className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-semibold text-xs transition-all w-full text-left cursor-pointer ${
+                  activeTab === 'upload' 
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25' 
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+                }`}
+              >
+                <UploadCloud size={17} /> Upload Datasets
+              </button>
+            </div>
+          </div>
+
+          {/* Group 3: Organization */}
+          <div>
+            <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 mb-2 px-3">
+              Preferences
+            </p>
+            <div className="flex flex-col gap-1">
+              <button 
+                onClick={() => { setActiveTab("profile"); setIsMobileMenuOpen(false); }} 
+                className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-semibold text-xs transition-all w-full text-left cursor-pointer ${
+                  activeTab === 'profile' 
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25' 
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+                }`}
+              >
+                <User size={17} /> Account & Files
+              </button>
+            </div>
+          </div>
         </div>
-        <div className="pt-6 border-t border-slate-700">
-          <button onClick={handleLogout} className="flex items-center gap-3 text-red-400 hover:text-red-300 w-full"><LogOut size={20}/> Log Out</button>
+
+        {/* User Card & Logout Footer */}
+        <div className="pt-4 border-t border-slate-800/80 mt-auto">
+          <div className="p-3 bg-slate-900/90 rounded-2xl border border-slate-800 flex items-center justify-between">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-sm">
+                {(userProfile?.email || "U").charAt(0).toUpperCase()}
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-white truncate max-w-[110px]">{userProfile?.email || "User"}</p>
+                <span className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Active
+                </span>
+              </div>
+            </div>
+            <button 
+              onClick={handleLogout} 
+              className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer" 
+              title="Log Out"
+            >
+              <LogOut size={16} />
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="flex-1 p-6 pt-24 md:p-10 md:pt-10 overflow-y-auto">
+      <div className="flex-1 bg-slate-950 p-6 pt-24 md:p-10 md:pt-10 overflow-y-auto">
         {/* Floating Ingest Stream Toast */}
         {streamToast && (
           <div className="fixed top-6 right-6 z-50 flex items-center gap-3 px-5 py-3.5 bg-slate-900/95 backdrop-blur-xl text-white rounded-2xl shadow-2xl border border-white/10 animate-in slide-in-from-top-4 duration-300">
