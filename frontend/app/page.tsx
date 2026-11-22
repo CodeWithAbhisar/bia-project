@@ -1088,15 +1088,15 @@ export default function App() {
               <span className={`relative inline-flex rounded-full h-3 w-3 ${autoSyncEnabled ? 'bg-emerald-500' : 'bg-gray-400'}`}></span>
             </span>
             <div className="flex flex-col sm:flex-row sm:items-center sm:gap-2">
-              <span className="text-xs font-extrabold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
-                <Activity size={14} className="text-emerald-500" /> BAM Live Monitoring
+              <span className="text-xs font-extrabold uppercase tracking-wider text-slate-200 flex items-center gap-1.5">
+                <Activity size={14} className="text-emerald-400" /> BAM Live Monitoring
               </span>
-              <span className="text-xs text-gray-400 font-medium hidden sm:inline">• Synced {lastSyncTime}</span>
+              <span className="text-xs text-slate-400 font-medium hidden sm:inline">• Synced {lastSyncTime}</span>
             </div>
             
             <button 
               onClick={() => setAutoSyncEnabled(!autoSyncEnabled)} 
-              className={`text-xs px-2.5 py-1 rounded-full font-bold border transition-all ${autoSyncEnabled ? 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100' : 'bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100'}`}
+              className={`text-xs px-2.5 py-1 rounded-full font-bold border transition-all ${autoSyncEnabled ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/25' : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-800'}`}
               title="Toggle automatic 12-second live pulse updates"
             >
               {autoSyncEnabled ? '● Live Sync: ON' : '○ Sync: PAUSED'}
@@ -1119,17 +1119,17 @@ export default function App() {
             <button 
               onClick={() => syncBAMPulse(false)} 
               disabled={isSyncing}
-              className="p-2 text-gray-600 hover:text-gray-900 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors shadow-sm cursor-pointer"
+              className="p-2 text-slate-300 hover:text-white bg-slate-900 border border-slate-800 rounded-xl hover:bg-slate-800 transition-colors shadow-sm cursor-pointer"
               title="Refresh BAM pulse immediately"
             >
-              <RefreshCw size={16} className={isSyncing ? "animate-spin text-blue-600" : ""} />
+              <RefreshCw size={16} className={isSyncing ? "animate-spin text-blue-400" : ""} />
             </button>
 
             {/* Notification Bell with Badge */}
             <div className="relative">
               <button 
                 onClick={() => setIsAlertsOpen(!isAlertsOpen)} 
-                className={`relative p-2 rounded-xl border transition-all shadow-sm cursor-pointer ${isAlertsOpen ? 'bg-blue-50 border-blue-300 text-blue-600' : 'bg-white border-gray-200 text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
+                className={`relative p-2 rounded-xl border transition-all shadow-sm cursor-pointer ${isAlertsOpen ? 'bg-blue-600/20 border-blue-500/40 text-blue-400' : 'bg-slate-900 border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800'}`}
                 title="Business Activity Alerts & Triggers"
               >
                 <Bell size={17} />
@@ -1329,10 +1329,10 @@ export default function App() {
           <div className="animate-in fade-in duration-500">
             <div className="flex items-center justify-between mb-8">
               <div>
-                <h2 className="text-3xl font-extrabold text-gray-900 tracking-tight">Overview Dashboard</h2>
-                <p className="text-gray-500 mt-1">Your high-level business performance metrics.</p>
+                <h2 className="text-3xl font-extrabold text-white tracking-tight">Overview Dashboard</h2>
+                <p className="text-slate-400 mt-1">Your high-level business performance metrics.</p>
               </div>
-              <button onClick={handleExportReport} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors shadow-sm">
+              <button onClick={handleExportReport} className="flex items-center gap-2 px-4 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs font-semibold text-slate-200 hover:text-white hover:bg-slate-800 transition-colors shadow-sm">
                 <FileText size={16} /> Export Report
               </button>
             </div>
@@ -1689,8 +1689,8 @@ export default function App() {
           <div className="flex flex-col gap-8 animate-in fade-in duration-500">
             <div className="flex items-center justify-between mb-2">
               <div>
-                <h2 className="text-3xl font-extrabold text-gray-900 tracking-tight">Cashflow Analytics</h2>
-                <p className="text-gray-500 mt-1">Deep dive into your financial health and growth.</p>
+                <h2 className="text-3xl font-extrabold text-white tracking-tight">Cashflow Analytics</h2>
+                <p className="text-slate-400 mt-1">Deep dive into your financial health and growth.</p>
               </div>
             </div>
             
@@ -1768,8 +1768,8 @@ export default function App() {
           <div className="flex flex-col gap-8 animate-in fade-in duration-500">
             <div className="flex items-center justify-between mb-2">
               <div>
-                <h2 className="text-3xl font-extrabold text-gray-900 tracking-tight">Inventory Intelligence</h2>
-                <p className="text-gray-500 mt-1">Real-time stock tracking and portfolio health.</p>
+                <h2 className="text-3xl font-extrabold text-white tracking-tight">Inventory Intelligence</h2>
+                <p className="text-slate-400 mt-1">Real-time stock tracking and portfolio health.</p>
               </div>
             </div>
             
@@ -1815,7 +1815,7 @@ export default function App() {
                     placeholder="Search categories..." 
                     value={inventorySearch}
                     onChange={(e) => setInventorySearch(e.target.value)}
-                    className="pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-blue-500" 
+                    className="pl-9 pr-4 py-2 border border-gray-200 rounded-xl text-sm text-gray-900 bg-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm" 
                   />
                 </div>
               </div>
@@ -1862,28 +1862,28 @@ export default function App() {
           <div className="max-w-5xl mx-auto w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
               <div>
-                <h2 className="text-3xl font-extrabold text-gray-900 tracking-tight">Proactive Insights</h2>
-                <p className="text-gray-500 mt-2">AI-driven analysis and key observations from your latest data.</p>
+                <h2 className="text-3xl font-extrabold text-white tracking-tight">Proactive Insights</h2>
+                <p className="text-slate-400 mt-2">AI-driven analysis and key observations from your latest data.</p>
               </div>
               <div className="flex items-center gap-2">
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                   <input 
                     type="text"
                     placeholder="Search insights..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full md:w-64"
+                    className="pl-9 pr-4 py-2 bg-slate-900 border border-slate-800 text-white placeholder:text-slate-400 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full md:w-64"
                   />
                 </div>
               </div>
             </div>
 
             <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
-              <button onClick={() => setInsightFilter("all")} className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${insightFilter === 'all' ? 'bg-slate-800 text-white' : 'bg-white text-gray-600 border hover:bg-gray-50'}`}>All ({insightCounts.total})</button>
-              <button onClick={() => setInsightFilter("alert")} className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${insightFilter === 'alert' ? 'bg-amber-100 text-amber-800 border-amber-200 border' : 'bg-white text-gray-600 border hover:bg-gray-50'}`}>Alerts ({insightCounts.alert})</button>
-              <button onClick={() => setInsightFilter("success")} className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${insightFilter === 'success' ? 'bg-emerald-100 text-emerald-800 border-emerald-200 border' : 'bg-white text-gray-600 border hover:bg-gray-50'}`}>Success ({insightCounts.success})</button>
-              <button onClick={() => setInsightFilter("info")} className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${insightFilter === 'info' ? 'bg-blue-100 text-blue-800 border-blue-200 border' : 'bg-white text-gray-600 border hover:bg-gray-50'}`}>Info ({insightCounts.info})</button>
+              <button onClick={() => setInsightFilter("all")} className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-colors ${insightFilter === 'all' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20' : 'bg-slate-900 text-slate-300 border border-slate-800 hover:text-white hover:bg-slate-800'}`}>All ({insightCounts.total})</button>
+              <button onClick={() => setInsightFilter("alert")} className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-colors ${insightFilter === 'alert' ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 border' : 'bg-slate-900 text-slate-300 border border-slate-800 hover:text-white hover:bg-slate-800'}`}>Alerts ({insightCounts.alert})</button>
+              <button onClick={() => setInsightFilter("success")} className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-colors ${insightFilter === 'success' ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 border' : 'bg-slate-900 text-slate-300 border border-slate-800 hover:text-white hover:bg-slate-800'}`}>Success ({insightCounts.success})</button>
+              <button onClick={() => setInsightFilter("info")} className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-colors ${insightFilter === 'info' ? 'bg-blue-500/20 text-blue-300 border-blue-500/40 border' : 'bg-slate-900 text-slate-300 border border-slate-800 hover:text-white hover:bg-slate-800'}`}>Info ({insightCounts.info})</button>
             </div>
             
             {visibleInsights.length === 0 ? (
@@ -2070,8 +2070,8 @@ export default function App() {
           <div className="flex flex-col gap-8 animate-in fade-in duration-500 max-w-4xl mx-auto w-full">
             <div className="flex items-center justify-between mb-2">
               <div>
-                <h2 className="text-3xl font-extrabold text-gray-900 tracking-tight">Account & Resources</h2>
-                <p className="text-gray-500 mt-1">Manage your credentials and uploaded datasets.</p>
+                <h2 className="text-3xl font-extrabold text-white tracking-tight">Account & Resources</h2>
+                <p className="text-slate-400 mt-1">Manage your credentials and uploaded datasets.</p>
               </div>
             </div>
             
@@ -2122,11 +2122,11 @@ export default function App() {
           <div className="flex flex-col gap-8 animate-in fade-in duration-500 max-w-5xl mx-auto w-full">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-2">
               <div>
-                <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-50 border border-blue-200 rounded-full text-blue-700 text-xs font-bold mb-2">
-                  <Plug size={13} className="text-blue-600" /> Automated Store & Tool Connections
+                <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-500/15 border border-blue-500/30 rounded-full text-blue-400 text-xs font-bold mb-2">
+                  <Plug size={13} className="text-blue-400" /> Automated Store & Tool Connections
                 </div>
-                <h2 className="text-3xl font-extrabold text-gray-900 tracking-tight">Zero-Code Business Integrations</h2>
-                <p className="text-gray-500 mt-1">Connect your spreadsheets, stores, and payment registers with zero technical knowledge.</p>
+                <h2 className="text-3xl font-extrabold text-white tracking-tight">Zero-Code Business Integrations</h2>
+                <p className="text-slate-400 mt-1">Connect your spreadsheets, stores, and payment registers with zero technical knowledge.</p>
               </div>
 
               <button
