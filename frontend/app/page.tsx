@@ -1934,11 +1934,11 @@ export default function App() {
                       </p>
                       <button 
                         onClick={handleSimulateStream}
-                        disabled={isStreaming}
+                        disabled={isSimulatingStream}
                         className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                       >
                         <Zap size={12} className="text-yellow-300" />
-                        {isStreaming ? "Simulating..." : "Simulate Live Sale"}
+                        {isSimulatingStream ? "Simulating..." : "Simulate Live Sale"}
                       </button>
                     </div>
                   ) : (
