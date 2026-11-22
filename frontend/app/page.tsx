@@ -8,12 +8,16 @@ import { LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, Cartesia
 import { UploadCloud, LayoutDashboard, DollarSign, Package, MessageSquare, Bell, Send, CheckCircle, AlertTriangle, Info, LogOut, Search, X, Copy, Check, Sparkles, TrendingUp, Database, FileText, User, Trash2, Menu, Mail, Activity, RefreshCw, Plug, Layers, Zap, ShieldAlert, ArrowUpRight, ArrowDownRight, Eye, ChevronRight, Sliders, CheckCircle2, AlertCircle, Store, CreditCard, PlusCircle, ArrowRight, Clock } from "lucide-react";
 
 export default function App() {
-  const [token, setToken] = useState<string | null>(() => {
+  const [isMounted, setIsMounted] = useState(false);
+  const [token, setToken] = useState<string | null>(null);
+
+  useEffect(() => {
+    setIsMounted(true);
     if (typeof window !== "undefined") {
-      return localStorage.getItem("token");
+      const savedToken = localStorage.getItem("token");
+      if (savedToken) setToken(savedToken);
     }
-    return null;
-  });
+  }, []);
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -745,6 +749,19 @@ export default function App() {
     setTimeout(() => setCopiedInsight(null), 2000);
   };
 
+  if (!isMounted) {
+    return (
+      <div className="flex min-h-screen bg-slate-950 items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center font-bold text-white shadow-lg shadow-blue-500/30 animate-pulse">
+            ⚡
+          </div>
+          <p className="text-xs text-slate-400 font-medium tracking-wide">Initializing workspace...</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!token) {
     return (
       <div className="flex min-h-screen bg-slate-950 items-center justify-center p-4 relative overflow-hidden">
@@ -1016,9 +1033,15 @@ export default function App() {
     );
   }
   
-  const formatCompact = (num: number | null | undefined) => {
-    if (num === null || num === undefined) return "N/A";
-    return new Intl.NumberFormat('en-US', { notation: "compact", maximumFractionDigits: 1 }).format(num);
+  const formatCompact = (val: any) => {
+    if (val === null || val === undefined) return "0";
+    const n = Number(val);
+    if (isNaN(n) || !isFinite(n)) return "0";
+    try {
+      return new Intl.NumberFormat('en-US', { notation: "compact", maximumFractionDigits: 1 }).format(n);
+    } catch {
+      return String(n);
+    }
   };
 
   return (
