@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "BIA — Business Intelligence & Activity Monitoring",
-  description: "Next-generation real-time business intelligence, live KPI activity monitoring, and AI operational analytics.",
+  title: "BIA — All-in-One AI Business Agent & Operations Platform",
+  description: "Autonomous all-rounder AI business agent for cashflow, sales growth, inventory optimization, and strategic decision making.",
   other: {
     "darkreader-lock": "true",
   },

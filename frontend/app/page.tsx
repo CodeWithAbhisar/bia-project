@@ -763,7 +763,7 @@ export default function App() {
               </span>
             </div>
             <p className="text-slate-400 text-xs font-medium">
-              Real-Time Business Activity Monitoring & Intelligence
+              All-Rounder AI Business Agent & Intelligence Platform
             </p>
           </div>
 
@@ -920,7 +920,7 @@ export default function App() {
                 <span className="font-extrabold text-sm tracking-tight text-white">BIA Platform</span>
                 <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">PRO</span>
               </div>
-              <p className="text-[10px] text-slate-400 font-medium">Business Activity Monitor</p>
+              <p className="text-[10px] text-slate-400 font-medium">All-Rounder Business Agent</p>
             </div>
           </div>
           <button onClick={() => setIsMobileMenuOpen(false)} className="md:hidden text-slate-400 hover:text-white">
@@ -1089,13 +1089,13 @@ export default function App() {
             </span>
             <div className="flex flex-col sm:flex-row sm:items-center sm:gap-2">
               <span className="text-xs font-extrabold uppercase tracking-wider text-slate-200 flex items-center gap-1.5">
-                <Activity size={14} className="text-emerald-400" /> BAM Live Monitoring
+                <Activity size={14} className="text-emerald-400" /> AI Agent Live Operations
               </span>
               <span className="text-xs text-slate-400 font-medium hidden sm:inline">• Synced {lastSyncTime}</span>
             </div>
             
             <button 
-              onClick={() => setAutoSyncEnabled(!autoSyncEnabled)} 
+              onClick={() => syncBAMPulse(false)} 
               className={`text-xs px-2.5 py-1 rounded-full font-bold border transition-all ${autoSyncEnabled ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/25' : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-800'}`}
               title="Toggle automatic 12-second live pulse updates"
             >
@@ -1109,10 +1109,10 @@ export default function App() {
               onClick={handleSimulateStream}
               disabled={isSimulatingStream}
               className="flex items-center gap-2 px-3.5 py-2 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all hover:shadow-md active:scale-95 cursor-pointer disabled:opacity-50"
-              title="Simulate inbound ERP/CRM transaction in real time"
+              title="Simulate inbound customer order in real time"
             >
               <Zap size={14} className={isSimulatingStream ? "animate-spin text-yellow-300" : "text-yellow-300"} />
-              {isSimulatingStream ? "Ingesting Feed..." : "Simulate ERP Feed"}
+              {isSimulatingStream ? "Processing Sale..." : "Simulate Inbound Sale"}
             </button>
 
             {/* Manual Pulse Refresh */}
@@ -1120,7 +1120,7 @@ export default function App() {
               onClick={() => syncBAMPulse(false)} 
               disabled={isSyncing}
               className="p-2 text-slate-300 hover:text-white bg-slate-900 border border-slate-800 rounded-xl hover:bg-slate-800 transition-colors shadow-sm cursor-pointer"
-              title="Refresh BAM pulse immediately"
+              title="Refresh Live Business Metrics"
             >
               <RefreshCw size={16} className={isSyncing ? "animate-spin text-blue-400" : ""} />
             </button>
@@ -1130,7 +1130,7 @@ export default function App() {
               <button 
                 onClick={() => setIsAlertsOpen(!isAlertsOpen)} 
                 className={`relative p-2 rounded-xl border transition-all shadow-sm cursor-pointer ${isAlertsOpen ? 'bg-blue-600/20 border-blue-500/40 text-blue-400' : 'bg-slate-900 border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800'}`}
-                title="Business Activity Alerts & Triggers"
+                title="AI Business Alerts & Insights"
               >
                 <Bell size={17} />
                 {unreadAlertCount > 0 && (
@@ -1148,7 +1148,7 @@ export default function App() {
                       <div className="p-1.5 bg-blue-50 text-blue-600 rounded-lg">
                         <ShieldAlert size={16} />
                       </div>
-                      <h4 className="font-extrabold text-gray-900 text-sm">Activity Alerts</h4>
+                      <h4 className="font-extrabold text-gray-900 text-sm">AI Business Alerts</h4>
                       {unreadAlertCount > 0 && (
                         <span className="px-2 py-0.5 bg-rose-100 text-rose-700 text-[10px] font-bold rounded-full">
                           {unreadAlertCount} unread
@@ -1168,7 +1168,7 @@ export default function App() {
                   <div className="flex flex-col gap-2.5 max-h-80 overflow-y-auto pr-1">
                     {bamAlerts.length === 0 ? (
                       <div className="p-6 text-center text-gray-400 text-xs">
-                        No activity triggers right now. All processes are nominal.
+                        No active alerts right now. All business operations are running smoothly.
                       </div>
                     ) : (
                       bamAlerts.map((alert: any) => (
@@ -1219,15 +1219,15 @@ export default function App() {
               
               <div className="relative z-10 max-w-2xl bg-white/5 backdrop-blur-md p-8 rounded-2xl border border-white/10 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
                 <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/10 backdrop-blur-md border border-white/20 rounded-full text-blue-50 text-xs font-semibold mb-6 shadow-sm">
-                  <Sparkles size={14} className="text-blue-200" /> Intelligent Analytics Engine
+                  <Sparkles size={14} className="text-blue-200" /> All-Rounder AI Business Agent
                 </div>
                 
                 <h1 className="text-3xl lg:text-4xl font-extrabold mb-4 leading-snug tracking-tight">
-                  Transform Raw Data Into <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-200 to-cyan-200">Actionable Intelligence</span>
+                  Your Autonomous AI Business Agent & <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-200 to-cyan-200">Growth OS</span>
                 </h1>
                 
                 <p className="text-blue-100/90 text-base mb-8 leading-relaxed font-medium">
-                  Upload your sales or inventory CSV data. Our schemaless ETL pipeline will automatically process it, generate financial KPIs, detect anomalies, and prepare an AI assistant to answer your business questions.
+                  Upload your sales, store, or inventory data. Your autonomous AI agent continuously monitors cashflow, optimizes stock levels, detects hidden growth opportunities, and provides strategic execution advice.
                 </p>
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -1480,9 +1480,9 @@ export default function App() {
               {/* Stream Velocity Scorecard */}
               <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-bold uppercase tracking-wider text-gray-500">BAM Ingestion Stream</span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-gray-500">Live Business Velocity</span>
                   <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 flex items-center gap-1">
-                    <Activity size={12} className="text-blue-500" /> Live Stream
+                    <Activity size={12} className="text-blue-500" /> Live Feed
                   </span>
                 </div>
                 <div className="flex items-baseline justify-between mb-2">
@@ -1589,7 +1589,7 @@ export default function App() {
                 <div className="mb-4 flex items-center justify-between">
                   <div>
                     <h3 className="text-xl font-bold text-gray-900">Revenue by Category (Donut)</h3>
-                    <p className="text-sm text-gray-500">Interactive BAM slice — click any segment to drill down</p>
+                    <p className="text-sm text-gray-500">Revenue distribution by category — click any segment to investigate</p>
                   </div>
                   <button 
                     onClick={() => handleOpenDrilldown("all")}
@@ -1639,8 +1639,8 @@ export default function App() {
                       <Activity size={18} />
                     </div>
                     <div>
-                      <h3 className="text-xl font-bold text-gray-900">Live Inbound Activity Feed</h3>
-                      <p className="text-sm text-gray-500">Real-time ERP/CRM events streamed to dashboard</p>
+                      <h3 className="text-xl font-bold text-gray-900">Live Sales & Orders Feed</h3>
+                      <p className="text-sm text-gray-500">Real-time customer transactions processed by your business agent</p>
                     </div>
                   </div>
                   <span className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-full">
@@ -1652,7 +1652,7 @@ export default function App() {
                   {(bamLive?.live_stream || []).length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-center text-gray-400 text-xs p-6">
                       <Database size={32} className="mb-2 text-gray-300" />
-                      No live events recorded yet.<br />Click "Simulate ERP Feed" above to test live streaming!
+                      No live transactions recorded yet.<br />Click "Simulate Inbound Sale" above to test live order processing!
                     </div>
                   ) : (
                     bamLive.live_stream.slice(0, 7).map((item: any) => (
@@ -1966,8 +1966,8 @@ export default function App() {
                   <MessageSquare size={24} />
                 </div>
                 <div>
-                  <h2 className="text-2xl font-bold text-gray-900">AI Data Assistant</h2>
-                  <p className="text-sm text-gray-500">Ask questions grounded in your latest uploaded data.</p>
+                  <h2 className="text-2xl font-bold text-gray-900">All-Rounder AI Business Copilot</h2>
+                  <p className="text-sm text-gray-500">Your 24/7 strategic advisor for revenue growth, pricing, cashflow, marketing, and operations.</p>
                 </div>
               </div>
               <button 
@@ -1984,9 +1984,9 @@ export default function App() {
                   <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mb-6">
                     <Sparkles size={32} className="text-blue-500" />
                   </div>
-                  <h3 className="text-xl font-bold text-gray-800 mb-2">How can I help you today?</h3>
+                  <h3 className="text-xl font-bold text-gray-800 mb-2">How can I help grow your business today?</h3>
                   <p className="text-gray-500 max-w-md">
-                    Try asking about your revenue trends, top performing products, or anomalies in your inventory.
+                    Ask me anything: pricing optimization, marketing campaigns, customer retention, sales forecasting, or inventory replenishment strategies.
                   </p>
                 </div>
               ) : (
@@ -2045,7 +2045,7 @@ export default function App() {
                   value={chatInput} 
                   onChange={(e) => setChatInput(e.target.value)} 
                   onKeyDown={(e) => e.key === "Enter" && handleSendMessage()} 
-                  placeholder="Ask a question about your revenue, inventory, or trends..."
+                  placeholder="Ask your AI business agent anything (pricing, sales growth, cashflow, operations)..."
                   disabled={isChatLoading || isChatStreaming}
                   className="flex-1 pl-6 pr-16 py-4 bg-slate-50 border border-slate-200 rounded-full text-base text-slate-900 placeholder:text-slate-400 font-medium outline-none focus:bg-white focus:border-blue-600 focus:ring-4 focus:ring-blue-500/10 transition-all disabled:opacity-50" 
                 />
@@ -2061,7 +2061,7 @@ export default function App() {
                   <Send size={18} className="ml-1" />
                 </button>
               </div>
-              <p className="text-center text-xs text-gray-400 mt-4">AI responses are generated based on your uploaded CSV context.</p>
+              <p className="text-center text-xs text-gray-400 mt-4">BIA AI Business Agent grounds real-time store data with executive business strategy and operational intelligence.</p>
             </div>
           </div>
         )}
@@ -2565,7 +2565,7 @@ export default function App() {
 
               {/* Modal Footer */}
               <div className="p-4 border-t border-gray-100 bg-gray-50 flex items-center justify-between">
-                <span className="text-xs text-gray-500 font-medium">BAM Drill-Down Engine • Real-time database slice</span>
+                <span className="text-xs text-gray-500 font-medium">AI Diagnostic Engine • Real-time database slice</span>
                 <button 
                   onClick={() => setIsDrilldownOpen(false)}
                   className="px-5 py-2 bg-gray-900 hover:bg-black text-white text-xs font-bold rounded-xl transition-colors cursor-pointer"
