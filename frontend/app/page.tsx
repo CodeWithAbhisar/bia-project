@@ -1045,16 +1045,16 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen bg-slate-900 text-slate-100 relative overflow-hidden font-sans">
+    <div className="flex h-screen bg-[#f8fafc] text-slate-900 relative overflow-hidden font-sans">
       {/* Mobile Top Nav */}
-      <div className="md:hidden absolute top-0 left-0 right-0 h-16 bg-slate-900/90 backdrop-blur-xl border-b border-slate-800 flex items-center justify-between px-6 z-30 shadow-sm">
+      <div className="md:hidden absolute top-0 left-0 right-0 h-16 bg-white/95 backdrop-blur-xl border-b border-slate-200/80 flex items-center justify-between px-6 z-30 shadow-sm">
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center font-bold text-white text-xs">
+          <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center font-bold text-white text-xs shadow-sm">
             ⚡
           </div>
-          <span className="font-bold text-white text-sm">BIA Platform</span>
+          <span className="font-bold text-slate-900 text-sm">BIA Platform</span>
         </div>
-        <button onClick={() => setIsMobileMenuOpen(true)} className="text-slate-300 hover:text-white p-1">
+        <button onClick={() => setIsMobileMenuOpen(true)} className="text-slate-600 hover:text-slate-900 p-1">
           <Menu size={22} />
         </button>
       </div>
@@ -1062,28 +1062,28 @@ export default function App() {
       {/* Mobile Overlay */}
       {isMobileMenuOpen && (
         <div 
-          className="md:hidden fixed inset-0 bg-slate-950/80 z-40 backdrop-blur-md transition-opacity"
+          className="md:hidden fixed inset-0 bg-slate-900/40 z-40 backdrop-blur-sm transition-opacity"
           onClick={() => setIsMobileMenuOpen(false)}
         />
       )}
 
       {/* Enterprise SaaS Sidebar */}
-      <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-slate-950 border-r border-slate-800/80 text-white p-5 flex flex-col h-full transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-slate-200/80 text-slate-800 p-5 flex flex-col h-full transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} shadow-[1px_0_12px_rgba(0,0,0,0.03)]`}>
         {/* Brand Header */}
-        <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-800/80">
+        <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-100">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-500 flex items-center justify-center font-extrabold text-white shadow-lg shadow-blue-500/20 border border-white/20">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 flex items-center justify-center font-extrabold text-white shadow-md shadow-blue-500/25">
               <Sparkles size={20} className="text-white" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-extrabold text-sm tracking-tight text-white">BIA Platform</span>
-                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">PRO</span>
+                <span className="font-extrabold text-sm tracking-tight text-slate-900">BIA Platform</span>
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">PRO</span>
               </div>
               <p className="text-[10px] text-slate-400 font-medium">All-Rounder Business Agent</p>
             </div>
           </div>
-          <button onClick={() => setIsMobileMenuOpen(false)} className="md:hidden text-slate-400 hover:text-white">
+          <button onClick={() => setIsMobileMenuOpen(false)} className="md:hidden text-slate-400 hover:text-slate-700">
             <X size={20} />
           </button>
         </div>
@@ -1100,8 +1100,8 @@ export default function App() {
                 onClick={() => { setActiveTab("dashboard"); setIsMobileMenuOpen(false); }} 
                 className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-semibold text-xs transition-all w-full text-left cursor-pointer ${
                   activeTab === 'dashboard' 
-                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25' 
-                    : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25 font-bold' 
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
                 }`}
               >
                 <LayoutDashboard size={17} /> Overview Dashboard
@@ -1111,8 +1111,8 @@ export default function App() {
                 onClick={() => { setActiveTab("cashflow"); setIsMobileMenuOpen(false); }} 
                 className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-semibold text-xs transition-all w-full text-left cursor-pointer ${
                   activeTab === 'cashflow' 
-                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25' 
-                    : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25 font-bold' 
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
                 }`}
               >
                 <DollarSign size={17} /> Cashflow Analytics
@@ -1122,8 +1122,8 @@ export default function App() {
                 onClick={() => { setActiveTab("inventory"); setIsMobileMenuOpen(false); }} 
                 className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-semibold text-xs transition-all w-full text-left cursor-pointer ${
                   activeTab === 'inventory' 
-                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25' 
-                    : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25 font-bold' 
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
                 }`}
               >
                 <Package size={17} /> Inventory Health
@@ -1133,8 +1133,8 @@ export default function App() {
                 onClick={() => { setActiveTab("insights"); setIsMobileMenuOpen(false); }} 
                 className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-semibold text-xs transition-all w-full text-left cursor-pointer ${
                   activeTab === 'insights' 
-                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25' 
-                    : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25 font-bold' 
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
                 }`}
               >
                 <Bell size={17} /> Proactive Insights
@@ -1152,8 +1152,8 @@ export default function App() {
                 onClick={() => { setActiveTab("integrations"); setIsMobileMenuOpen(false); }} 
                 className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-semibold text-xs transition-all w-full text-left cursor-pointer ${
                   activeTab === 'integrations' 
-                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25' 
-                    : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25 font-bold' 
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
                 }`}
               >
                 <Plug size={17} /> Store Integrations
@@ -1163,8 +1163,8 @@ export default function App() {
                 onClick={() => { setActiveTab("chat"); setIsMobileMenuOpen(false); }} 
                 className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-semibold text-xs transition-all w-full text-left cursor-pointer ${
                   activeTab === 'chat' 
-                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25' 
-                    : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25 font-bold' 
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
                 }`}
               >
                 <MessageSquare size={17} /> AI Copilot Assistant
@@ -1174,8 +1174,8 @@ export default function App() {
                 onClick={() => { setActiveTab("upload"); setIsMobileMenuOpen(false); }} 
                 className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-semibold text-xs transition-all w-full text-left cursor-pointer ${
                   activeTab === 'upload' 
-                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25' 
-                    : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25 font-bold' 
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
                 }`}
               >
                 <UploadCloud size={17} /> Upload Datasets
@@ -1193,8 +1193,8 @@ export default function App() {
                 onClick={() => { setActiveTab("profile"); setIsMobileMenuOpen(false); }} 
                 className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-semibold text-xs transition-all w-full text-left cursor-pointer ${
                   activeTab === 'profile' 
-                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25' 
-                    : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25 font-bold' 
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
                 }`}
               >
                 <User size={17} /> Account & Files
@@ -1204,22 +1204,22 @@ export default function App() {
         </div>
 
         {/* User Card & Logout Footer */}
-        <div className="pt-4 border-t border-slate-800/80 mt-auto">
-          <div className="p-3 bg-slate-900/90 rounded-2xl border border-slate-800 flex items-center justify-between">
+        <div className="pt-4 border-t border-slate-100 mt-auto">
+          <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-sm">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-sm">
                 {(userProfile?.email || "U").charAt(0).toUpperCase()}
               </div>
               <div className="min-w-0">
-                <p className="text-xs font-bold text-white truncate max-w-[110px]">{userProfile?.email || "User"}</p>
-                <span className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1">
+                <p className="text-xs font-bold text-slate-900 truncate max-w-[110px]">{userProfile?.email || "User"}</p>
+                <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Active
                 </span>
               </div>
             </div>
             <button 
               onClick={handleLogout} 
-              className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer" 
+              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer" 
               title="Log Out"
             >
               <LogOut size={16} />
@@ -1228,7 +1228,7 @@ export default function App() {
         </div>
       </div>
 
-      <div className="flex-1 bg-slate-950 p-6 pt-24 md:p-10 md:pt-10 overflow-y-auto">
+      <div className="flex-1 bg-gradient-to-br from-slate-50 via-slate-50/90 to-blue-50/30 p-6 pt-24 md:p-10 md:pt-10 overflow-y-auto">
         {/* Floating Ingest Stream Toast */}
         {streamToast && (
           <div className="fixed top-6 right-6 z-50 flex items-center gap-3 px-5 py-3.5 bg-slate-900/95 backdrop-blur-xl text-white rounded-2xl shadow-2xl border border-white/10 animate-in slide-in-from-top-4 duration-300">
@@ -1241,22 +1241,22 @@ export default function App() {
         )}
 
         {/* Global BAM Real-Time Control & Alerts Header */}
-        <div className="flex flex-wrap items-center justify-between gap-4 mb-8 pb-5 border-b border-gray-200/70">
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-8 pb-5 border-b border-slate-200/90">
           <div className="flex items-center gap-3">
             <span className="relative flex h-3 w-3">
               <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${autoSyncEnabled ? 'bg-emerald-400' : 'bg-gray-400'} opacity-75`}></span>
               <span className={`relative inline-flex rounded-full h-3 w-3 ${autoSyncEnabled ? 'bg-emerald-500' : 'bg-gray-400'}`}></span>
             </span>
             <div className="flex flex-col sm:flex-row sm:items-center sm:gap-2">
-              <span className="text-xs font-extrabold uppercase tracking-wider text-slate-200 flex items-center gap-1.5">
-                <Activity size={14} className="text-emerald-400" /> AI Agent Live Operations
+              <span className="text-xs font-extrabold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+                <Activity size={14} className="text-emerald-500" /> AI Agent Live Operations
               </span>
-              <span className="text-xs text-slate-400 font-medium hidden sm:inline">• Synced {lastSyncTime}</span>
+              <span className="text-xs text-slate-500 font-medium hidden sm:inline">• Synced {lastSyncTime}</span>
             </div>
             
             <button 
               onClick={() => syncBAMPulse(false)} 
-              className={`text-xs px-2.5 py-1 rounded-full font-bold border transition-all ${autoSyncEnabled ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/25' : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-800'}`}
+              className={`text-xs px-2.5 py-1 rounded-full font-bold border transition-all ${autoSyncEnabled ? 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100/70' : 'bg-slate-100 border-slate-200 text-slate-600 hover:bg-slate-200'}`}
               title="Toggle automatic 12-second live pulse updates"
             >
               {autoSyncEnabled ? '● Live Sync: ON' : '○ Sync: PAUSED'}
@@ -1279,17 +1279,17 @@ export default function App() {
             <button 
               onClick={() => syncBAMPulse(false)} 
               disabled={isSyncing}
-              className="p-2 text-slate-300 hover:text-white bg-slate-900 border border-slate-800 rounded-xl hover:bg-slate-800 transition-colors shadow-sm cursor-pointer"
+              className="p-2 text-slate-600 hover:text-slate-900 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors shadow-sm cursor-pointer"
               title="Refresh Live Business Metrics"
             >
-              <RefreshCw size={16} className={isSyncing ? "animate-spin text-blue-400" : ""} />
+              <RefreshCw size={16} className={isSyncing ? "animate-spin text-blue-500" : ""} />
             </button>
 
             {/* Notification Bell with Badge */}
             <div className="relative">
               <button 
                 onClick={() => setIsAlertsOpen(!isAlertsOpen)} 
-                className={`relative p-2 rounded-xl border transition-all shadow-sm cursor-pointer ${isAlertsOpen ? 'bg-blue-600/20 border-blue-500/40 text-blue-400' : 'bg-slate-900 border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800'}`}
+                className={`relative p-2 rounded-xl border transition-all shadow-sm cursor-pointer ${isAlertsOpen ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50'}`}
                 title="AI Business Alerts & Insights"
               >
                 <Bell size={17} />
@@ -1489,27 +1489,27 @@ export default function App() {
           <div className="animate-in fade-in duration-500">
             <div className="flex items-center justify-between mb-8">
               <div>
-                <h2 className="text-3xl font-extrabold text-white tracking-tight">Overview Dashboard</h2>
-                <p className="text-slate-400 mt-1">Your high-level business performance metrics.</p>
+                <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">Overview Dashboard</h2>
+                <p className="text-slate-500 mt-1 font-medium">Your high-level business performance metrics.</p>
               </div>
-              <button onClick={handleExportReport} className="flex items-center gap-2 px-4 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs font-semibold text-slate-200 hover:text-white hover:bg-slate-800 transition-colors shadow-sm">
+              <button onClick={handleExportReport} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 hover:text-slate-900 hover:bg-slate-50 transition-colors shadow-sm cursor-pointer">
                 <FileText size={16} /> Export Report
               </button>
             </div>
 
             {/* Quick Start / Store Setup Banner when no data */}
             {((overviewData?.revenue_trend || []).length === 0 && (processedInventoryData || []).length === 0) && (
-              <div className="mb-8 p-6 bg-gradient-to-r from-blue-900/40 via-indigo-900/40 to-slate-900/90 backdrop-blur-xl border border-blue-500/30 rounded-3xl shadow-xl flex flex-col md:flex-row items-center justify-between gap-5 animate-in fade-in duration-500">
+              <div className="mb-8 p-7 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white rounded-3xl shadow-xl shadow-blue-500/15 border border-blue-400/30 flex flex-col md:flex-row items-center justify-between gap-5 animate-in fade-in duration-500">
                 <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 rounded-2xl bg-blue-600/30 border border-blue-400/30 text-blue-300 flex items-center justify-center shrink-0 shadow-lg shadow-blue-500/20">
+                  <div className="w-14 h-14 rounded-2xl bg-white/20 border border-white/30 text-white flex items-center justify-center shrink-0 shadow-lg backdrop-blur-md">
                     <Sparkles size={28} />
                   </div>
                   <div>
-                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 text-[10px] font-bold uppercase tracking-wider mb-1">
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/20 text-white border border-white/30 text-[10px] font-bold uppercase tracking-wider mb-1 backdrop-blur-md">
                       Business Workspace Ready
                     </div>
-                    <h3 className="text-lg font-bold text-white">Connect Your Business Operations</h3>
-                    <p className="text-xs text-slate-300 mt-0.5 max-w-xl">
+                    <h3 className="text-xl font-extrabold text-white">Connect Your Business Operations</h3>
+                    <p className="text-xs text-blue-50 mt-1 max-w-xl leading-relaxed">
                       Connect your sales registers, sync your Google Sheets, or upload your transaction files to activate real-time analytics, live monitoring, and AI executive recommendations.
                     </p>
                   </div>
@@ -1517,13 +1517,13 @@ export default function App() {
                 <div className="flex items-center gap-2.5 shrink-0 w-full md:w-auto">
                   <button
                     onClick={() => setActiveTab("integrations")}
-                    className="flex-1 md:flex-initial flex items-center justify-center gap-2 px-5 py-3 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white font-bold rounded-2xl text-xs shadow-lg shadow-blue-500/30 transition-all cursor-pointer"
+                    className="flex-1 md:flex-initial flex items-center justify-center gap-2 px-5 py-3 bg-white hover:bg-blue-50 text-blue-700 font-extrabold rounded-2xl text-xs shadow-lg shadow-black/10 transition-all cursor-pointer"
                   >
                     <Plug size={14} /> Connect Store & POS
                   </button>
                   <button
                     onClick={() => setActiveTab("upload")}
-                    className="flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-3 bg-slate-900/80 hover:bg-slate-800 text-slate-200 border border-slate-700/80 font-bold rounded-2xl text-xs transition-all cursor-pointer"
+                    className="flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-3 bg-white/15 hover:bg-white/25 text-white border border-white/30 font-bold rounded-2xl text-xs backdrop-blur-md transition-all cursor-pointer"
                   >
                     <UploadCloud size={14} /> Upload Dataset
                   </button>
@@ -1991,8 +1991,8 @@ export default function App() {
           <div className="flex flex-col gap-8 animate-in fade-in duration-500">
             <div className="flex items-center justify-between mb-2">
               <div>
-                <h2 className="text-3xl font-extrabold text-white tracking-tight">Cashflow Analytics</h2>
-                <p className="text-slate-400 mt-1">Deep dive into your financial health and growth.</p>
+                <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">Cashflow Analytics</h2>
+                <p className="text-slate-500 mt-1 font-medium">Deep dive into your financial health and growth.</p>
               </div>
             </div>
             
@@ -2098,8 +2098,8 @@ export default function App() {
           <div className="flex flex-col gap-8 animate-in fade-in duration-500">
             <div className="flex items-center justify-between mb-2">
               <div>
-                <h2 className="text-3xl font-extrabold text-white tracking-tight">Inventory Intelligence</h2>
-                <p className="text-slate-400 mt-1">Real-time stock tracking and portfolio health.</p>
+                <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">Inventory Intelligence</h2>
+                <p className="text-slate-500 mt-1 font-medium">Real-time stock tracking and portfolio health.</p>
               </div>
             </div>
             
@@ -2224,8 +2224,8 @@ export default function App() {
           <div className="max-w-5xl mx-auto w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
               <div>
-                <h2 className="text-3xl font-extrabold text-white tracking-tight">Proactive Insights</h2>
-                <p className="text-slate-400 mt-2">AI-driven analysis and key observations from your latest data.</p>
+                <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">Proactive Insights</h2>
+                <p className="text-slate-500 mt-2 font-medium">AI-driven analysis and key observations from your latest data.</p>
               </div>
               <div className="flex items-center gap-2">
                 <div className="relative">
@@ -2235,17 +2235,17 @@ export default function App() {
                     placeholder="Search insights..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-9 pr-4 py-2 bg-slate-900 border border-slate-800 text-white placeholder:text-slate-400 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full md:w-64"
+                    className="pl-9 pr-4 py-2 bg-white border border-slate-200 text-slate-900 placeholder:text-slate-400 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm w-full md:w-64"
                   />
                 </div>
               </div>
             </div>
 
             <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
-              <button onClick={() => setInsightFilter("all")} className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-colors ${insightFilter === 'all' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20' : 'bg-slate-900 text-slate-300 border border-slate-800 hover:text-white hover:bg-slate-800'}`}>All ({insightCounts.total})</button>
-              <button onClick={() => setInsightFilter("alert")} className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-colors ${insightFilter === 'alert' ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 border' : 'bg-slate-900 text-slate-300 border border-slate-800 hover:text-white hover:bg-slate-800'}`}>Alerts ({insightCounts.alert})</button>
-              <button onClick={() => setInsightFilter("success")} className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-colors ${insightFilter === 'success' ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 border' : 'bg-slate-900 text-slate-300 border border-slate-800 hover:text-white hover:bg-slate-800'}`}>Success ({insightCounts.success})</button>
-              <button onClick={() => setInsightFilter("info")} className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-colors ${insightFilter === 'info' ? 'bg-blue-500/20 text-blue-300 border-blue-500/40 border' : 'bg-slate-900 text-slate-300 border border-slate-800 hover:text-white hover:bg-slate-800'}`}>Info ({insightCounts.info})</button>
+              <button onClick={() => setInsightFilter("all")} className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-colors ${insightFilter === 'all' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20' : 'bg-white text-slate-600 border border-slate-200 hover:text-slate-900 hover:bg-slate-50 shadow-sm'}`}>All ({insightCounts.total})</button>
+              <button onClick={() => setInsightFilter("alert")} className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-colors ${insightFilter === 'alert' ? 'bg-amber-500 text-white shadow-md shadow-amber-500/20' : 'bg-white text-slate-600 border border-slate-200 hover:text-slate-900 hover:bg-slate-50 shadow-sm'}`}>Alerts ({insightCounts.alert})</button>
+              <button onClick={() => setInsightFilter("success")} className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-colors ${insightFilter === 'success' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'bg-white text-slate-600 border border-slate-200 hover:text-slate-900 hover:bg-slate-50 shadow-sm'}`}>Success ({insightCounts.success})</button>
+              <button onClick={() => setInsightFilter("info")} className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-colors ${insightFilter === 'info' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20' : 'bg-white text-slate-600 border border-slate-200 hover:text-slate-900 hover:bg-slate-50 shadow-sm'}`}>Info ({insightCounts.info})</button>
             </div>
             
             {visibleInsights.length === 0 ? (
@@ -2432,8 +2432,8 @@ export default function App() {
           <div className="flex flex-col gap-8 animate-in fade-in duration-500 max-w-4xl mx-auto w-full">
             <div className="flex items-center justify-between mb-2">
               <div>
-                <h2 className="text-3xl font-extrabold text-white tracking-tight">Account & Resources</h2>
-                <p className="text-slate-400 mt-1">Manage your credentials and uploaded datasets.</p>
+                <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">Account & Resources</h2>
+                <p className="text-slate-500 mt-1 font-medium">Manage your credentials and uploaded datasets.</p>
               </div>
             </div>
             
@@ -2484,11 +2484,11 @@ export default function App() {
           <div className="flex flex-col gap-8 animate-in fade-in duration-500 max-w-5xl mx-auto w-full">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-2">
               <div>
-                <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-500/15 border border-blue-500/30 rounded-full text-blue-400 text-xs font-bold mb-2">
-                  <Plug size={13} className="text-blue-400" /> Automated Store & Tool Connections
+                <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-50 border border-blue-200 rounded-full text-blue-700 text-xs font-bold mb-2">
+                  <Plug size={13} className="text-blue-600" /> Automated Store & Tool Connections
                 </div>
-                <h2 className="text-3xl font-extrabold text-white tracking-tight">Zero-Code Business Integrations</h2>
-                <p className="text-slate-400 mt-1">Connect your spreadsheets, stores, and payment registers with zero technical knowledge.</p>
+                <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">Zero-Code Business Integrations</h2>
+                <p className="text-slate-500 mt-1 font-medium">Connect your spreadsheets, stores, and payment registers with zero technical knowledge.</p>
               </div>
 
               <button
