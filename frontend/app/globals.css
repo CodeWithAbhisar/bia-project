@@ -28,6 +28,13 @@ body {
   letter-spacing: -0.012em;
 }
 
+/* Ensure inputs on light surfaces default to dark legible text */
+input:not([class*="text-white"]):not([class*="text-slate-100"]):not([class*="text-slate-200"]),
+textarea:not([class*="text-white"]),
+select:not([class*="text-white"]) {
+  color: #0f172a;
+}
+
 /* Custom sleek scrollbar */
 ::-webkit-scrollbar {
   width: 6px;

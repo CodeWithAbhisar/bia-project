@@ -2047,7 +2047,7 @@ export default function App() {
                   onKeyDown={(e) => e.key === "Enter" && handleSendMessage()} 
                   placeholder="Ask a question about your revenue, inventory, or trends..."
                   disabled={isChatLoading || isChatStreaming}
-                  className="flex-1 pl-6 pr-16 py-4 bg-gray-50 border border-gray-200 rounded-full text-base outline-none focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all disabled:opacity-50" 
+                  className="flex-1 pl-6 pr-16 py-4 bg-slate-50 border border-slate-200 rounded-full text-base text-slate-900 placeholder:text-slate-400 font-medium outline-none focus:bg-white focus:border-blue-600 focus:ring-4 focus:ring-blue-500/10 transition-all disabled:opacity-50" 
                 />
                 <button 
                   onClick={handleSendMessage} 
@@ -2169,7 +2169,7 @@ export default function App() {
                       placeholder="https://docs.google.com/spreadsheets/d/..."
                       value={googleSheetUrl}
                       onChange={(e) => setGoogleSheetUrl(e.target.value)}
-                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all font-mono"
+                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 placeholder:text-gray-400 font-mono outline-none focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all"
                       required
                     />
 
@@ -2224,7 +2224,7 @@ export default function App() {
                           placeholder="e.g. 150.00"
                           value={quickSaleAmount}
                           onChange={(e) => setQuickSaleAmount(e.target.value)}
-                          className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold outline-none focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
+                          className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-900 placeholder:text-gray-400 outline-none focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
                           required
                         />
                       </div>
@@ -2233,7 +2233,7 @@ export default function App() {
                         <select
                           value={quickSaleCategory}
                           onChange={(e) => setQuickSaleCategory(e.target.value)}
-                          className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold outline-none focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
+                          className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-gray-900 outline-none focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
                         >
                           {inventoryData.length > 0 ? (
                             inventoryData.map(i => <option key={i.category} value={i.category}>{i.category}</option>)
@@ -2255,7 +2255,7 @@ export default function App() {
                         <select
                           value={quickSaleChannel}
                           onChange={(e) => setQuickSaleChannel(e.target.value)}
-                          className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold outline-none focus:bg-white focus:border-blue-500 transition-all"
+                          className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-gray-900 outline-none focus:bg-white focus:border-blue-500 transition-all"
                         >
                           <option value="In-Store POS">In-Store Register</option>
                           <option value="Cash Sale">Cash at Counter</option>
@@ -2271,7 +2271,7 @@ export default function App() {
                           placeholder="SKU or Customer Name"
                           value={quickSaleNote}
                           onChange={(e) => setQuickSaleNote(e.target.value)}
-                          className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:bg-white focus:border-blue-500 transition-all"
+                          className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 placeholder:text-gray-400 outline-none focus:bg-white focus:border-blue-500 transition-all"
                         />
                       </div>
                     </div>
