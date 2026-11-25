@@ -103,25 +103,57 @@ def upload_data(file: UploadFile = File(...), background_tasks: BackgroundTasks 
 
 @app.get("/api/user/profile")
 def get_user_profile(user_id: int = Depends(get_current_user_id), db: Session = Depends(get_db)):
-    from models.database import User, Transaction, IntegrationSetting
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    files = db.query(FileRecord).filter(FileRecord.user_id == user_id).all()
-    transaction_count = db.query(Transaction).filter(Transaction.user_id == user_id).count()
-    connected_integrations = db.query(IntegrationSetting).filter(
-        IntegrationSetting.user_id == user_id,
-        IntegrationSetting.is_connected == 1
-    ).count()
-    return {
-        "email": user.email,
-        "full_name": user.full_name,
-        "company": user.company,
-        "created_at": user.created_at.isoformat() if user.created_at else None,
-        "transaction_count": transaction_count,
-        "connected_integrations": connected_integrations,
-        "files": [{"id": f.id, "filename": f.filename, "status": f.status} for f in files]
-    }
+    try:
+        from models.database import User, FileRecord
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        files = []
+        try:
+            files = db.query(FileRecord).filter(FileRecord.user_id == user_id).all()
+        except Exception:
+            db.rollback()
+
+        transaction_count = 0
+        try:
+            from models.database import Transaction
+            transaction_count = db.query(Transaction).filter(Transaction.user_id == user_id).count()
+        except Exception:
+            db.rollback()
+
+        connected_integrations = 0
+        try:
+            from models.database import IntegrationSetting
+            connected_integrations = db.query(IntegrationSetting).filter(
+                IntegrationSetting.user_id == user_id,
+                IntegrationSetting.is_connected == 1
+            ).count()
+        except Exception:
+            db.rollback()
+
+        created_at_val = None
+        try:
+            if hasattr(user, "created_at") and user.created_at:
+                created_at_val = user.created_at.isoformat()
+        except Exception:
+            pass
+
+        return {
+            "email": user.email,
+            "full_name": getattr(user, "full_name", None),
+            "company": getattr(user, "company", None),
+            "created_at": created_at_val,
+            "transaction_count": transaction_count,
+            "connected_integrations": connected_integrations,
+            "files": [{"id": f.id, "filename": f.filename, "status": f.status} for f in files]
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to fetch profile: {str(e)}")
 
 @app.patch("/api/user/profile")
 def update_user_profile(req: dict, user_id: int = Depends(get_current_user_id), db: Session = Depends(get_db)):

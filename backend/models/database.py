@@ -94,15 +94,23 @@ class IntegrationSetting(Base):
 
 Base.metadata.create_all(bind=engine)
 
-# Lightweight auto-migration: add created_at column to existing users table
-# (create_all only creates missing tables, not missing columns)
+# Lightweight auto-migration: add created_at, full_name, company columns if missing
 try:
-    with engine.connect() as conn:
-        cols = [r[1] for r in conn.exec_driver_sql("PRAGMA table_info(users)").fetchall()] if "sqlite" in str(engine.url) else None
-        if cols is not None and "created_at" not in cols:
-            conn.exec_driver_sql("ALTER TABLE users ADD COLUMN created_at DATETIME")
-except Exception:
-    pass  # Postgres/Supabase users: run ALTER TABLE users ADD COLUMN created_at TIMESTAMPTZ manually if needed
+    with engine.begin() as conn:
+        if "sqlite" in str(engine.url):
+            cols = [r[1] for r in conn.exec_driver_sql("PRAGMA table_info(users)").fetchall()]
+            if "created_at" not in cols:
+                conn.exec_driver_sql("ALTER TABLE users ADD COLUMN created_at DATETIME")
+            if "full_name" not in cols:
+                conn.exec_driver_sql("ALTER TABLE users ADD COLUMN full_name TEXT")
+            if "company" not in cols:
+                conn.exec_driver_sql("ALTER TABLE users ADD COLUMN company TEXT")
+        else:
+            conn.exec_driver_sql("ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW()")
+            conn.exec_driver_sql("ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name VARCHAR")
+            conn.exec_driver_sql("ALTER TABLE users ADD COLUMN IF NOT EXISTS company VARCHAR")
+except Exception as e:
+    print(f"Auto-migration notice: {e}")
 
 def get_db():
     db = SessionLocal()

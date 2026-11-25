@@ -16,6 +16,12 @@ export default function App() {
     if (typeof window !== "undefined") {
       const savedToken = localStorage.getItem("token");
       if (savedToken) setToken(savedToken);
+      const savedProfile = localStorage.getItem("user_profile");
+      if (savedProfile) {
+        try {
+          setUserProfile(JSON.parse(savedProfile));
+        } catch {}
+      }
     }
   }, []);
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
@@ -198,20 +204,34 @@ export default function App() {
   const [isConnectingIntegration, setIsConnectingIntegration] = useState(false);
   const [integrationError, setIntegrationError] = useState("");
   const [isResettingWorkspace, setIsResettingWorkspace] = useState(false);
+  const [isProfileLoading, setIsProfileLoading] = useState(false);
+  const [profileFetchError, setProfileFetchError] = useState<string | null>(null);
 
   const fetchProfile = async () => {
+    if (!token) return;
+    setIsProfileLoading(true);
+    setProfileFetchError(null);
     try {
       const config = { headers: { Authorization: `Bearer ${token}` } };
       const res = await axios.get(API_BASE + "/api/user/profile", config);
-      setUserProfile(res.data);
+      if (res.data) {
+        setUserProfile(res.data);
+        if (typeof window !== "undefined") {
+          localStorage.setItem("user_profile", JSON.stringify(res.data));
+        }
+      }
     } catch (e: any) {
       if (e.response && (e.response.status === 401 || e.response.status === 404)) {
         localStorage.removeItem("token");
+        localStorage.removeItem("user_profile");
         setUserProfile(null);
         setToken(null);
         return;
       }
       console.warn("Failed to fetch profile:", e?.message || e);
+      setProfileFetchError(e?.response?.data?.detail || e?.message || "Failed to load account profile.");
+    } finally {
+      setIsProfileLoading(false);
     }
   };
 
@@ -639,6 +659,7 @@ export default function App() {
     setToken(null);
     setUserProfile(null);
     localStorage.removeItem("token");
+    localStorage.removeItem("user_profile");
     setOverviewData(null);
     setCashflowData(null);
     setInventoryData([]);
@@ -2671,7 +2692,7 @@ export default function App() {
           </div>
         )}
 
-        {activeTab === "profile" && userProfile && (
+        {activeTab === "profile" && (
           <div className="flex flex-col gap-8 animate-in fade-in duration-500 max-w-5xl mx-auto w-full">
             {/* Page Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200/60">
@@ -2695,6 +2716,37 @@ export default function App() {
                 </span>
               </div>
             </div>
+
+            {!userProfile ? (
+              <div className="bg-white rounded-3xl p-12 border border-slate-200/80 shadow-sm text-center animate-in fade-in duration-300">
+                <div className="w-16 h-16 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto mb-4 animate-pulse">
+                  <RefreshCw size={26} className={isProfileLoading ? "animate-spin" : ""} />
+                </div>
+                <h3 className="text-lg font-bold text-slate-900">
+                  {isProfileLoading ? "Connecting to Account Profile..." : "Account Profile Synchronizing"}
+                </h3>
+                <p className="text-xs text-slate-500 mt-1.5 max-w-md mx-auto leading-relaxed">
+                  {profileFetchError || "Retrieving your organization credentials, active datasets, and security settings from the server."}
+                </p>
+                <div className="mt-6 flex items-center justify-center gap-3">
+                  <button
+                    onClick={() => fetchProfile()}
+                    disabled={isProfileLoading}
+                    className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition-all shadow-sm cursor-pointer flex items-center gap-2 disabled:opacity-50"
+                  >
+                    <RefreshCw size={14} className={isProfileLoading ? "animate-spin" : ""} />
+                    {isProfileLoading ? "Connecting..." : "Retry Connection"}
+                  </button>
+                  <button
+                    onClick={handleLogout}
+                    className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition-all cursor-pointer"
+                  >
+                    Sign Out & Re-login
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
 
             {/* Master Executive Profile Card */}
             <div className="bg-white rounded-3xl shadow-sm border border-slate-200/80 overflow-hidden hover:shadow-md transition-all duration-300">
@@ -3173,6 +3225,8 @@ export default function App() {
                 </button>
               </div>
             </div>
+              </>
+            )}
           </div>
         )}
 
