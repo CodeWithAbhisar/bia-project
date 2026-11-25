@@ -38,6 +38,7 @@ class User(Base):
     hashed_password = Column(String)
     full_name = Column(String, nullable=True)
     company = Column(String, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 class Transaction(Base):
     __tablename__ = "transactions"
@@ -92,6 +93,16 @@ class IntegrationSetting(Base):
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 Base.metadata.create_all(bind=engine)
+
+# Lightweight auto-migration: add created_at column to existing users table
+# (create_all only creates missing tables, not missing columns)
+try:
+    with engine.connect() as conn:
+        cols = [r[1] for r in conn.exec_driver_sql("PRAGMA table_info(users)").fetchall()] if "sqlite" in str(engine.url) else None
+        if cols is not None and "created_at" not in cols:
+            conn.exec_driver_sql("ALTER TABLE users ADD COLUMN created_at DATETIME")
+except Exception:
+    pass  # Postgres/Supabase users: run ALTER TABLE users ADD COLUMN created_at TIMESTAMPTZ manually if needed
 
 def get_db():
     db = SessionLocal()

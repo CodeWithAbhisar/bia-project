@@ -110,8 +110,24 @@ def get_user_profile(user_id: int = Depends(get_current_user_id), db: Session = 
     files = db.query(FileRecord).filter(FileRecord.user_id == user_id).all()
     return {
         "email": user.email,
+        "full_name": user.full_name,
+        "company": user.company,
+        "created_at": user.created_at.isoformat() if user.created_at else None,
         "files": [{"id": f.id, "filename": f.filename, "status": f.status} for f in files]
     }
+
+@app.patch("/api/user/profile")
+def update_user_profile(req: dict, user_id: int = Depends(get_current_user_id), db: Session = Depends(get_db)):
+    from models.database import User
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if "full_name" in req:
+        user.full_name = (req["full_name"] or "").strip() or None
+    if "company" in req:
+        user.company = (req["company"] or "").strip() or None
+    db.commit()
+    return {"status": "updated", "full_name": user.full_name, "company": user.company}
 
 @app.delete("/api/user/files/{file_id}")
 def delete_user_file(file_id: int, user_id: int = Depends(get_current_user_id), db: Session = Depends(get_db)):

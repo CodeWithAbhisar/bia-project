@@ -5,7 +5,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 const API_BASE = "";
 import axios from "axios";
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
-import { UploadCloud, LayoutDashboard, DollarSign, Package, MessageSquare, Bell, Send, CheckCircle, AlertTriangle, Info, LogOut, Search, X, Copy, Check, Sparkles, TrendingUp, Database, FileText, User, Trash2, Menu, Mail, Activity, RefreshCw, Plug, Layers, Zap, ShieldAlert, ArrowUpRight, ArrowDownRight, Eye, ChevronRight, Sliders, CheckCircle2, AlertCircle, Store, CreditCard, PlusCircle, ArrowRight, Clock } from "lucide-react";
+import { UploadCloud, LayoutDashboard, DollarSign, Package, MessageSquare, Bell, Send, CheckCircle, AlertTriangle, Info, LogOut, Search, X, Copy, Check, Sparkles, TrendingUp, Database, FileText, User, Trash2, Menu, Mail, Activity, RefreshCw, Plug, Layers, Zap, ShieldAlert, ArrowUpRight, ArrowDownRight, Eye, ChevronRight, Sliders, CheckCircle2, AlertCircle, Store, CreditCard, PlusCircle, ArrowRight, Clock, Pencil, Save, Building2, Calendar } from "lucide-react";
 
 export default function App() {
   const [isMounted, setIsMounted] = useState(false);
@@ -158,7 +158,11 @@ export default function App() {
   }, [token, authMode]);
   
   // Profile state
-  const [userProfile, setUserProfile] = useState<{email: string, files: any[]} | null>(null);
+  const [userProfile, setUserProfile] = useState<{email: string, full_name?: string, company?: string, created_at?: string, files: any[]} | null>(null);
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [editFullName, setEditFullName] = useState("");
+  const [editCompany, setEditCompany] = useState("");
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   // Connected Business Channels state
   const [connectedIntegrations, setConnectedIntegrations] = useState<{
@@ -787,6 +791,21 @@ export default function App() {
   const activeChannelsCount = useMemo(() => {
     return Object.values(connectedIntegrations).filter((c: any) => c?.connected).length;
   }, [connectedIntegrations]);
+
+  const saveProfile = async () => {
+    const config = { headers: { Authorization: `Bearer ${token}` } };
+    setIsSavingProfile(true);
+    try {
+      await axios.patch(API_BASE + "/api/user/profile", { full_name: editFullName, company: editCompany }, config);
+      const res = await axios.get(API_BASE + "/api/user/profile", config);
+      setUserProfile(res.data);
+      setEditingProfile(false);
+    } catch (e) {
+      console.error("Failed to save profile", e);
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
 
   const hasAnyData = useMemo(() => {
     const hasFiles = Boolean(userProfile?.files && userProfile.files.length > 0);
@@ -2608,6 +2627,90 @@ export default function App() {
                 <h3 className="text-xl font-bold text-gray-900">User Profile</h3>
                 <p className="text-gray-500 font-medium">{userProfile.email}</p>
               </div>
+            </div>
+
+            <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-bold text-gray-900">Profile Details</h3>
+                {!editingProfile && (
+                  <button
+                    onClick={() => { setEditFullName(userProfile.full_name || ""); setEditCompany(userProfile.company || ""); setEditingProfile(true); }}
+                    className="px-4 py-2 bg-slate-900 text-white text-sm font-semibold rounded-xl hover:bg-slate-700 transition-colors flex items-center gap-2"
+                  >
+                    <Pencil size={15} /> Edit
+                  </button>
+                )}
+              </div>
+              {editingProfile ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Full Name</label>
+                      <input
+                        value={editFullName}
+                        onChange={(e) => setEditFullName(e.target.value)}
+                        placeholder="e.g. Rasih Abhisar"
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Company</label>
+                      <input
+                        value={editCompany}
+                        onChange={(e) => setEditCompany(e.target.value)}
+                        placeholder="e.g. Acme Retail Pvt. Ltd."
+                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={saveProfile}
+                      disabled={isSavingProfile}
+                      className="px-5 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-500 transition-colors disabled:opacity-50 flex items-center gap-2"
+                    >
+                      {isSavingProfile ? "Saving..." : (<><Save size={15} /> Save Changes</>)}
+                    </button>
+                    <button
+                      onClick={() => setEditingProfile(false)}
+                      className="px-5 py-2.5 bg-gray-100 text-gray-700 text-sm font-semibold rounded-xl hover:bg-gray-200 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center shrink-0"><User size={18} /></div>
+                    <div>
+                      <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">Full Name</p>
+                      <p className="font-semibold text-gray-800 mt-0.5">{userProfile.full_name || <span className="text-gray-400 italic font-normal">Not set</span>}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center shrink-0"><Building2 size={18} /></div>
+                    <div>
+                      <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">Company</p>
+                      <p className="font-semibold text-gray-800 mt-0.5">{userProfile.company || <span className="text-gray-400 italic font-normal">Not set</span>}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center shrink-0"><Mail size={18} /></div>
+                    <div>
+                      <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">Email</p>
+                      <p className="font-semibold text-gray-800 mt-0.5">{userProfile.email}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center shrink-0"><Calendar size={18} /></div>
+                    <div>
+                      <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">Member Since</p>
+                      <p className="font-semibold text-gray-800 mt-0.5">{userProfile.created_at ? new Date(userProfile.created_at).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : <span className="text-gray-400 italic font-normal">—</span>}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
