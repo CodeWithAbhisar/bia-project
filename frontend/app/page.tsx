@@ -25,6 +25,7 @@ export default function App() {
   const [fullName, setFullName] = useState("");
   const [company, setCompany] = useState("");
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [showAuthForm, setShowAuthForm] = useState(false);
 
   // OTP Verification state
   const [isOtpStep, setIsOtpStep] = useState(false);
@@ -855,6 +856,71 @@ export default function App() {
     );
   }
 
+  if (!token && !showAuthForm) {
+    return (
+      <div className="flex min-h-screen bg-slate-950 text-white relative overflow-hidden">
+        {/* Background glow meshes */}
+        <div className="absolute -top-40 -left-40 w-[600px] h-[600px] bg-blue-600/20 rounded-full filter blur-[140px] pointer-events-none"></div>
+        <div className="absolute -bottom-40 -right-40 w-[600px] h-[600px] bg-indigo-600/20 rounded-full filter blur-[140px] pointer-events-none"></div>
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-purple-600/10 rounded-full filter blur-[160px] pointer-events-none"></div>
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff08_1px,transparent_1px),linear-gradient(to_bottom,#ffffff08_1px,transparent_1px)] bg-[size:32px_32px] pointer-events-none"></div>
+
+        {/* Navbar */}
+        <nav className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-6 sm:px-10 py-5">
+          <div className="flex items-center gap-2">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-500 flex items-center justify-center shadow-lg shadow-blue-500/30 border border-white/20">
+              <Sparkles size={18} className="text-white" />
+            </div>
+            <span className="font-extrabold text-lg tracking-tight">BIA Platform</span>
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">PRO</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => { setAuthMode("login"); setShowAuthForm(true); }}
+              className="px-4 py-2 text-xs font-semibold text-slate-300 hover:text-white transition-colors cursor-pointer"
+            >
+              Sign In
+            </button>
+            <button
+              onClick={() => { setAuthMode("register"); setShowAuthForm(true); }}
+              className="px-4 py-2 text-xs font-bold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl shadow-lg shadow-blue-600/30 transition-all cursor-pointer"
+            >
+              Create Account
+            </button>
+          </div>
+        </nav>
+
+        {/* Hero */}
+        <div className="relative z-10 flex flex-col items-center justify-center min-h-screen text-center px-6 pt-20">
+          <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/30 mb-6 animate-in fade-in duration-500">
+            ✦ All-Rounder AI Business Agent
+          </span>
+          <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight leading-tight max-w-3xl animate-in fade-in duration-700">
+            Business Intelligence,
+            <span className="bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400 bg-clip-text text-transparent"> Reimagined</span>
+          </h1>
+          <p className="text-slate-400 text-sm sm:text-base max-w-xl mt-6 leading-relaxed animate-in fade-in duration-700">
+            Upload your data, monitor live business activity, track cashflow & inventory, and get proactive AI insights — all in one intelligent platform.
+          </p>
+          <div className="flex flex-col sm:flex-row items-center gap-4 mt-10 animate-in fade-in duration-700">
+            <button
+              onClick={() => { setAuthMode("register"); setShowAuthForm(true); }}
+              className="px-8 py-3.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold text-sm rounded-2xl shadow-xl shadow-blue-600/30 hover:shadow-blue-600/40 transition-all flex items-center gap-2 cursor-pointer"
+            >
+              Get Started Free <ArrowRight size={16} />
+            </button>
+            <button
+              onClick={() => { setAuthMode("login"); setShowAuthForm(true); }}
+              className="px-8 py-3.5 bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 text-white font-bold text-sm rounded-2xl transition-all cursor-pointer"
+            >
+              Sign In
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!token) {
     return (
       <div className="flex min-h-screen bg-slate-950 items-center justify-center p-4 relative overflow-hidden">
@@ -941,6 +1007,13 @@ export default function App() {
             <>
           {/* Brand Header */}
           <div className="flex flex-col items-center justify-center mb-6 text-center">
+            <button
+              type="button"
+              onClick={() => { setShowAuthForm(false); setAuthError(""); }}
+              className="self-start text-slate-400 hover:text-white text-xs flex items-center gap-1 mb-4 transition-colors cursor-pointer"
+            >
+              <ArrowRight size={14} className="rotate-180" /> Back to Home
+            </button>
             <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-500 flex items-center justify-center mb-4 shadow-xl shadow-blue-500/30 border border-white/20">
               <Sparkles size={28} className="text-white" />
             </div>
