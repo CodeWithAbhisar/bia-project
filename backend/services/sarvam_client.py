@@ -3,33 +3,46 @@ import json
 import os
 import time
 
-SARVAM_API_KEY = os.getenv("SARVAM_API_KEY", "")
-SARVAM_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions" 
+# Accept GEMINI_API_KEY first, fall back to legacy SARVAM_API_KEY for compatibility
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("SARVAM_API_KEY", "")
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+GEMINI_MODEL = "gemini-flash-lite-latest" 
 
 def generate_response(prompt: str) -> str:
+    if not GEMINI_API_KEY:
+        return "AI key not configured: set GEMINI_API_KEY in the backend environment."
     payload = {
-        "model": "gemini-flash-lite-latest",    
+        "model": GEMINI_MODEL,
         "messages": [{"role": "user", "content": prompt}],
         "max_tokens": 4096
     }
-    headers = {"Authorization": f"Bearer {SARVAM_API_KEY}", "Content-Type": "application/json"}
+    headers = {"Authorization": f"Bearer {GEMINI_API_KEY}", "Content-Type": "application/json"}
     try:
-        response = requests.post(SARVAM_URL, json=payload, headers=headers, timeout=60)
+        response = requests.post(GEMINI_URL, json=payload, headers=headers, timeout=60)
         response.raise_for_status()
         return response.json()['choices'][0]['message']['content']
     except Exception as e:
-        return "I am currently offline or encountered an error."
+        detail = ""
+        if getattr(e, "response", None) is not None:
+            try:
+                detail = f" | API said: {e.response.json()}"
+            except Exception:
+                pass
+        return f"AI request failed: {e}{detail}"
 
 def generate_response_stream(prompt: str):
+    if not GEMINI_API_KEY:
+        yield "AI key not configured: set GEMINI_API_KEY in the backend environment."
+        return
     payload = {
-        "model": "gemini-flash-lite-latest",    
+        "model": GEMINI_MODEL,
         "messages": [{"role": "user", "content": prompt}],
         "max_tokens": 4096,
         "stream": True
     }
-    headers = {"Authorization": f"Bearer {SARVAM_API_KEY}", "Content-Type": "application/json"}
+    headers = {"Authorization": f"Bearer {GEMINI_API_KEY}", "Content-Type": "application/json"}
     try:
-        response = requests.post(SARVAM_URL, json=payload, headers=headers, timeout=60, stream=True)
+        response = requests.post(GEMINI_URL, json=payload, headers=headers, timeout=60, stream=True)
         response.raise_for_status()
         
         for line in response.iter_lines():
@@ -47,11 +60,12 @@ def generate_response_stream(prompt: str):
                     except json.JSONDecodeError:
                         pass
     except requests.exceptions.RequestException as e:
-        # Fallback simulated stream for offline mode
-        offline_msg = "I am currently running in offline mode due to a network connection issue. However, based on your dataset, your overall metrics have been processed successfully. Please check your Dashboard for detailed insights!"
-        words = offline_msg.split(' ')
-        for word in words:
-            yield word + ' '
-            time.sleep(0.05)
+        detail = ""
+        if getattr(e, "response", None) is not None:
+            try:
+                detail = f" | API said: {e.response.json()}"
+            except Exception:
+                pass
+        yield f"AI request failed: {e}{detail}"
     except Exception as e:
         yield f"Error processing AI response: {str(e)}"
