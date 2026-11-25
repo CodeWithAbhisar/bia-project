@@ -4,11 +4,11 @@ import os
 import time
 
 SARVAM_API_KEY = os.getenv("SARVAM_API_KEY", "")
-SARVAM_URL = "https://api.sarvam.ai/v1/chat/completions" 
+SARVAM_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions" 
 
 def generate_response(prompt: str) -> str:
     payload = {
-        "model": "sarvam-105b", 
+        "model": "gemini-flash-lite-latest",    
         "messages": [{"role": "user", "content": prompt}],
         "max_tokens": 4096
     }
@@ -22,7 +22,7 @@ def generate_response(prompt: str) -> str:
 
 def generate_response_stream(prompt: str):
     payload = {
-        "model": "sarvam-105b", 
+        "model": "gemini-flash-lite-latest",    
         "messages": [{"role": "user", "content": prompt}],
         "max_tokens": 4096,
         "stream": True
