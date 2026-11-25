@@ -5,7 +5,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 const API_BASE = "";
 import axios from "axios";
 import { LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
-import { UploadCloud, LayoutDashboard, DollarSign, Package, MessageSquare, Bell, Send, CheckCircle, AlertTriangle, Info, LogOut, Search, X, Copy, Check, Sparkles, TrendingUp, Database, FileText, User, Trash2, Menu, Mail, Activity, RefreshCw, Plug, Layers, Zap, ShieldAlert, ArrowUpRight, ArrowDownRight, Eye, ChevronRight, Sliders, CheckCircle2, AlertCircle, Store, CreditCard, PlusCircle, ArrowRight, Clock, Pencil, Save, Building2, Calendar } from "lucide-react";
+import { UploadCloud, LayoutDashboard, DollarSign, Package, MessageSquare, Bell, Send, CheckCircle, AlertTriangle, Info, LogOut, Search, X, Copy, Check, Sparkles, TrendingUp, Database, FileText, User, Trash2, Menu, Mail, Activity, RefreshCw, Plug, Layers, Zap, ShieldAlert, ArrowUpRight, ArrowDownRight, Eye, ChevronRight, Sliders, CheckCircle2, AlertCircle, Store, CreditCard, PlusCircle, ArrowRight, Clock, Pencil, Save, Building2, Calendar, Shield, Key, Lock, FileSpreadsheet, Plus, ExternalLink, HardDrive } from "lucide-react";
 
 export default function App() {
   const [isMounted, setIsMounted] = useState(false);
@@ -158,11 +158,27 @@ export default function App() {
   }, [token, authMode]);
   
   // Profile state
-  const [userProfile, setUserProfile] = useState<{email: string, full_name?: string, company?: string, created_at?: string, files: any[]} | null>(null);
+  const [userProfile, setUserProfile] = useState<{
+    email: string;
+    full_name?: string;
+    company?: string;
+    created_at?: string;
+    transaction_count?: number;
+    connected_integrations?: number;
+    files: Array<{ id: number; filename: string; status: string }>;
+  } | null>(null);
   const [editingProfile, setEditingProfile] = useState(false);
   const [editFullName, setEditFullName] = useState("");
   const [editCompany, setEditCompany] = useState("");
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+  // Security / Password Change state
+  const [showPasswordChange, setShowPasswordChange] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [passwordChangeMsg, setPasswordChangeMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   // Connected Business Channels state
   const [connectedIntegrations, setConnectedIntegrations] = useState<{
@@ -800,10 +816,53 @@ export default function App() {
       const res = await axios.get(API_BASE + "/api/user/profile", config);
       setUserProfile(res.data);
       setEditingProfile(false);
-    } catch (e) {
+      setStreamToast({ message: "Profile details updated successfully!", type: "success" });
+      setTimeout(() => setStreamToast(null), 3500);
+    } catch (e: any) {
       console.error("Failed to save profile", e);
+      alert(e.response?.data?.detail || "Failed to save profile.");
     } finally {
       setIsSavingProfile(false);
+    }
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentPassword) {
+      setPasswordChangeMsg({ type: "error", text: "Please enter your current password." });
+      return;
+    }
+    if (newPassword.length < 8) {
+      setPasswordChangeMsg({ type: "error", text: "New password must be at least 8 characters long." });
+      return;
+    }
+    if (newPassword !== confirmNewPassword) {
+      setPasswordChangeMsg({ type: "error", text: "New passwords do not match." });
+      return;
+    }
+    setIsChangingPassword(true);
+    setPasswordChangeMsg(null);
+    try {
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      await axios.post(API_BASE + "/api/auth/change-password", {
+        current_password: currentPassword,
+        new_password: newPassword
+      }, config);
+      setPasswordChangeMsg({ type: "success", text: "Password updated successfully!" });
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmNewPassword("");
+      setTimeout(() => {
+        setShowPasswordChange(false);
+        setPasswordChangeMsg(null);
+      }, 2500);
+    } catch (err: any) {
+      setPasswordChangeMsg({
+        type: "error",
+        text: err.response?.data?.detail || "Failed to update password."
+      });
+    } finally {
+      setIsChangingPassword(false);
     }
   };
 
@@ -1375,7 +1434,7 @@ export default function App() {
             </p>
             <div className="flex flex-col gap-1">
               <button 
-                onClick={() => { setActiveTab("profile"); setIsMobileMenuOpen(false); }} 
+                onClick={() => { setActiveTab("profile"); fetchProfile(); setIsMobileMenuOpen(false); }} 
                 className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-semibold text-xs transition-all w-full text-left cursor-pointer ${
                   activeTab === 'profile' 
                     ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25 font-bold' 
@@ -1393,10 +1452,12 @@ export default function App() {
           <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-sm">
-                {(userProfile?.email || "U").charAt(0).toUpperCase()}
+                {(userProfile?.full_name || userProfile?.email || "U").charAt(0).toUpperCase()}
               </div>
               <div className="min-w-0">
-                <p className="text-xs font-bold text-slate-900 truncate max-w-[110px]">{userProfile?.email || "User"}</p>
+                <p className="text-xs font-bold text-slate-900 truncate max-w-[110px]" title={userProfile?.full_name || userProfile?.email || "User"}>
+                  {userProfile?.full_name || userProfile?.email || "User"}
+                </p>
                 <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Active
                 </span>
@@ -2611,132 +2672,476 @@ export default function App() {
         )}
 
         {activeTab === "profile" && userProfile && (
-          <div className="flex flex-col gap-8 animate-in fade-in duration-500 max-w-4xl mx-auto w-full">
-            <div className="flex items-center justify-between mb-2">
+          <div className="flex flex-col gap-8 animate-in fade-in duration-500 max-w-5xl mx-auto w-full">
+            {/* Page Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200/60">
               <div>
+                <div className="flex items-center gap-2 text-xs font-bold text-indigo-600 uppercase tracking-wider mb-1">
+                  <span>Preferences</span>
+                  <span className="text-slate-300">•</span>
+                  <span>Account & Resources</span>
+                </div>
                 <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">Account & Resources</h2>
-                <p className="text-slate-500 mt-1 font-medium">Manage your credentials and uploaded datasets.</p>
+                <p className="text-slate-500 text-sm mt-0.5">Manage your identity, organization settings, security policies, and uploaded datasets.</p>
               </div>
-            </div>
-            
-            <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100/50 flex items-center gap-6 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
-              <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center shrink-0">
-                <User size={32} />
-              </div>
-              <div>
-                <h3 className="text-xl font-bold text-gray-900">User Profile</h3>
-                <p className="text-gray-500 font-medium">{userProfile.email}</p>
+              <div className="flex items-center gap-2.5 shrink-0">
+                <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/80 shadow-xs">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  Active Account
+                </span>
+                <span className="inline-flex items-center gap-1 px-3.5 py-1.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200/80 shadow-xs">
+                  <Sparkles size={13} className="text-indigo-600" />
+                  Pro Workspace
+                </span>
               </div>
             </div>
 
-            <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-bold text-gray-900">Profile Details</h3>
-                {!editingProfile && (
-                  <button
-                    onClick={() => { setEditFullName(userProfile.full_name || ""); setEditCompany(userProfile.company || ""); setEditingProfile(true); }}
-                    className="px-4 py-2 bg-slate-900 text-white text-sm font-semibold rounded-xl hover:bg-slate-700 transition-colors flex items-center gap-2"
-                  >
-                    <Pencil size={15} /> Edit
-                  </button>
-                )}
-              </div>
-              {editingProfile ? (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Master Executive Profile Card */}
+            <div className="bg-white rounded-3xl shadow-sm border border-slate-200/80 overflow-hidden hover:shadow-md transition-all duration-300">
+              {/* Header Banner */}
+              <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 p-8 text-white relative">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 relative z-10">
+                  <div className="flex items-center gap-5">
+                    <div className="w-20 h-20 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 text-white flex items-center justify-center font-black text-3xl shadow-xl border-2 border-white/20 shrink-0">
+                      {(userProfile.full_name || userProfile.email || "U").charAt(0).toUpperCase()}
+                    </div>
                     <div>
-                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Full Name</label>
+                      <div className="flex items-center gap-2.5 flex-wrap">
+                        <h3 className="text-2xl font-extrabold tracking-tight">
+                          {userProfile.full_name || "Business Owner"}
+                        </h3>
+                        <span className="px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-indigo-500/30 text-indigo-200 border border-indigo-400/30 uppercase tracking-wide">
+                          Workspace Admin
+                        </span>
+                      </div>
+                      <p className="text-slate-300 text-sm mt-1 flex items-center gap-2">
+                        <span>{userProfile.email}</span>
+                        <span className="inline-flex items-center gap-1 text-[11px] text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-400/30 font-semibold">
+                          <CheckCircle2 size={11} /> Verified
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+
+                  {!editingProfile ? (
+                    <button
+                      onClick={() => {
+                        setEditFullName(userProfile.full_name || "");
+                        setEditCompany(userProfile.company || "");
+                        setEditingProfile(true);
+                      }}
+                      className="px-5 py-2.5 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-xl border border-white/20 backdrop-blur-md transition-all flex items-center gap-2 shrink-0 cursor-pointer shadow-sm hover:scale-102"
+                    >
+                      <Pencil size={14} /> Edit Profile
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+
+              {/* Body: View vs Edit Mode */}
+              <div className="p-8">
+                {editingProfile ? (
+                  <div className="space-y-6 animate-in fade-in duration-200">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                      <h4 className="text-base font-bold text-slate-900">Update Profile Information</h4>
+                      <span className="text-xs text-slate-400">Changes reflect across all workspace operations</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">
+                          Full Name
+                        </label>
+                        <div className="relative">
+                          <User size={16} className="absolute left-3.5 top-3.5 text-slate-400" />
+                          <input
+                            value={editFullName}
+                            onChange={(e) => setEditFullName(e.target.value)}
+                            placeholder="e.g. Rasih Abhisar"
+                            className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm font-medium outline-none transition-all"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">
+                          Company / Brand Name
+                        </label>
+                        <div className="relative">
+                          <Building2 size={16} className="absolute left-3.5 top-3.5 text-slate-400" />
+                          <input
+                            value={editCompany}
+                            onChange={(e) => setEditCompany(e.target.value)}
+                            placeholder="e.g. Acme Retail & Co."
+                            className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm font-medium outline-none transition-all"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 pt-2">
+                      <button
+                        onClick={saveProfile}
+                        disabled={isSavingProfile}
+                        className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition-all disabled:opacity-50 flex items-center gap-2 cursor-pointer shadow-sm shadow-indigo-600/25"
+                      >
+                        {isSavingProfile ? (
+                          <>
+                            <RefreshCw size={14} className="animate-spin" /> Saving Changes...
+                          </>
+                        ) : (
+                          <>
+                            <Save size={14} /> Save Profile
+                          </>
+                        )}
+                      </button>
+                      <button
+                        onClick={() => setEditingProfile(false)}
+                        className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                      <div className="flex items-center gap-2.5 mb-1.5">
+                        <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
+                          <User size={16} />
+                        </div>
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Full Name</span>
+                      </div>
+                      <p className="font-bold text-slate-800 text-sm truncate pl-1">
+                        {userProfile.full_name || <span className="text-slate-400 italic font-normal">Not configured</span>}
+                      </p>
+                    </div>
+
+                    <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                      <div className="flex items-center gap-2.5 mb-1.5">
+                        <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+                          <Building2 size={16} />
+                        </div>
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Company</span>
+                      </div>
+                      <p className="font-bold text-slate-800 text-sm truncate pl-1">
+                        {userProfile.company || <span className="text-slate-400 italic font-normal">Independent Store</span>}
+                      </p>
+                    </div>
+
+                    <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                      <div className="flex items-center gap-2.5 mb-1.5">
+                        <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
+                          <Mail size={16} />
+                        </div>
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Login Email</span>
+                      </div>
+                      <p className="font-bold text-slate-800 text-sm truncate pl-1" title={userProfile.email}>
+                        {userProfile.email}
+                      </p>
+                    </div>
+
+                    <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                      <div className="flex items-center gap-2.5 mb-1.5">
+                        <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
+                          <Calendar size={16} />
+                        </div>
+                        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Member Since</span>
+                      </div>
+                      <p className="font-bold text-slate-800 text-sm truncate pl-1">
+                        {userProfile.created_at
+                          ? new Date(userProfile.created_at).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })
+                          : "November 2026"}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Workspace Statistics Bar */}
+                <div className="mt-8 pt-6 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 font-bold">
+                      <FileSpreadsheet size={18} />
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-400 font-semibold uppercase">Uploaded Datasets</p>
+                      <p className="text-base font-extrabold text-slate-900">{userProfile.files?.length || 0} active</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0 font-bold">
+                      <Database size={18} />
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-400 font-semibold uppercase">Ingested Transactions</p>
+                      <p className="text-base font-extrabold text-slate-900">{(userProfile.transaction_count ?? 0).toLocaleString()} records</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 font-bold">
+                      <Plug size={18} />
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-400 font-semibold uppercase">Active Integrations</p>
+                      <p className="text-base font-extrabold text-slate-900">{userProfile.connected_integrations ?? 0} connected</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Security & Credentials Card */}
+            <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200/80 hover:shadow-md transition-all duration-300">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-slate-100">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-11 h-11 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                    <Shield size={22} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-slate-900">Security & Authentication</h3>
+                    <p className="text-slate-500 text-xs mt-0.5">Manage your password, account encryption, and access security.</p>
+                  </div>
+                </div>
+
+                {!showPasswordChange ? (
+                  <button
+                    onClick={() => {
+                      setShowPasswordChange(true);
+                      setPasswordChangeMsg(null);
+                    }}
+                    className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-2 shrink-0 cursor-pointer shadow-xs"
+                  >
+                    <Key size={14} /> Change Password
+                  </button>
+                ) : null}
+              </div>
+
+              {showPasswordChange ? (
+                <form onSubmit={handleChangePassword} className="bg-slate-50/70 p-6 rounded-2xl border border-slate-200/80 mb-6 space-y-4 animate-in fade-in duration-200">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                      <Lock size={15} className="text-indigo-600" /> Update Account Password
+                    </h4>
+                    <button
+                      type="button"
+                      onClick={() => setShowPasswordChange(false)}
+                      className="text-xs text-slate-400 hover:text-slate-700"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+
+                  {passwordChangeMsg && (
+                    <div className={`p-3.5 rounded-xl text-xs font-semibold flex items-center gap-2 ${
+                      passwordChangeMsg.type === "success"
+                        ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                        : "bg-rose-50 text-rose-800 border border-rose-200"
+                    }`}>
+                      {passwordChangeMsg.type === "success" ? <CheckCircle2 size={15} /> : <AlertCircle size={15} />}
+                      <span>{passwordChangeMsg.text}</span>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
+                        Current Password
+                      </label>
                       <input
-                        value={editFullName}
-                        onChange={(e) => setEditFullName(e.target.value)}
-                        placeholder="e.g. Rasih Abhisar"
-                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                        type="password"
+                        value={currentPassword}
+                        onChange={(e) => setCurrentPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm outline-none bg-white font-medium"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Company</label>
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
+                        New Password
+                      </label>
                       <input
-                        value={editCompany}
-                        onChange={(e) => setEditCompany(e.target.value)}
-                        placeholder="e.g. Acme Retail Pvt. Ltd."
-                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                        type="password"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder="Min. 8 chars, 1 uppercase, 1 symbol"
+                        className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm outline-none bg-white font-medium"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
+                        Confirm New Password
+                      </label>
+                      <input
+                        type="password"
+                        value={confirmNewPassword}
+                        onChange={(e) => setConfirmNewPassword(e.target.value)}
+                        placeholder="Re-type new password"
+                        className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm outline-none bg-white font-medium"
                       />
                     </div>
                   </div>
-                  <div className="flex gap-3">
+
+                  <div className="flex items-center gap-3 pt-2">
                     <button
-                      onClick={saveProfile}
-                      disabled={isSavingProfile}
-                      className="px-5 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-500 transition-colors disabled:opacity-50 flex items-center gap-2"
+                      type="submit"
+                      disabled={isChangingPassword}
+                      className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition-all disabled:opacity-50 flex items-center gap-2 cursor-pointer shadow-sm"
                     >
-                      {isSavingProfile ? "Saving..." : (<><Save size={15} /> Save Changes</>)}
+                      {isChangingPassword ? (
+                        <>
+                          <RefreshCw size={13} className="animate-spin" /> Updating...
+                        </>
+                      ) : (
+                        "Update Password"
+                      )}
                     </button>
                     <button
-                      onClick={() => setEditingProfile(false)}
-                      className="px-5 py-2.5 bg-gray-100 text-gray-700 text-sm font-semibold rounded-xl hover:bg-gray-200 transition-colors"
+                      type="button"
+                      onClick={() => setShowPasswordChange(false)}
+                      className="px-4 py-2 bg-white text-slate-700 text-xs font-semibold rounded-xl border border-slate-200 hover:bg-slate-50 transition-all cursor-pointer"
                     >
                       Cancel
                     </button>
                   </div>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center shrink-0"><User size={18} /></div>
-                    <div>
-                      <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">Full Name</p>
-                      <p className="font-semibold text-gray-800 mt-0.5">{userProfile.full_name || <span className="text-gray-400 italic font-normal">Not set</span>}</p>
-                    </div>
+                </form>
+              ) : null}
+
+              {/* Security Indicators Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+                    <Lock size={16} />
                   </div>
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center shrink-0"><Building2 size={18} /></div>
-                    <div>
-                      <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">Company</p>
-                      <p className="font-semibold text-gray-800 mt-0.5">{userProfile.company || <span className="text-gray-400 italic font-normal">Not set</span>}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center shrink-0"><Mail size={18} /></div>
-                    <div>
-                      <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">Email</p>
-                      <p className="font-semibold text-gray-800 mt-0.5">{userProfile.email}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center shrink-0"><Calendar size={18} /></div>
-                    <div>
-                      <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">Member Since</p>
-                      <p className="font-semibold text-gray-800 mt-0.5">{userProfile.created_at ? new Date(userProfile.created_at).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : <span className="text-gray-400 italic font-normal">—</span>}</p>
-                    </div>
+                  <div>
+                    <h5 className="text-xs font-bold text-slate-800">Password Encryption</h5>
+                    <p className="text-[11px] text-slate-500 mt-0.5">Salted bcrypt algorithm with 12 computation rounds.</p>
                   </div>
                 </div>
-              )}
+
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
+                    <Mail size={16} />
+                  </div>
+                  <div>
+                    <h5 className="text-xs font-bold text-slate-800">Two-Factor OTP</h5>
+                    <p className="text-[11px] text-slate-500 mt-0.5">6-digit email passcode verification enabled.</p>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-purple-100 text-purple-600 flex items-center justify-center shrink-0">
+                    <Key size={16} />
+                  </div>
+                  <div>
+                    <h5 className="text-xs font-bold text-slate-800">JWT Token Session</h5>
+                    <p className="text-[11px] text-slate-500 mt-0.5">24-hour cryptographic bearer authentication.</p>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100/50 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
-              <h3 className="text-xl font-bold text-gray-900 mb-6">Uploaded Files</h3>
-              {userProfile.files.length === 0 ? (
-                <div className="text-center p-8 border-2 border-dashed border-gray-200 rounded-2xl">
-                  <p className="text-gray-500">You haven&apos;t uploaded any files yet.</p>
+            {/* Uploaded Datasets & Data Governance Card */}
+            <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200/80 hover:shadow-md transition-all duration-300">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-slate-100">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-11 h-11 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                    <FileSpreadsheet size={22} />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-lg font-bold text-slate-900">Uploaded Datasets</h3>
+                      <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-600">
+                        {userProfile.files?.length || 0}
+                      </span>
+                    </div>
+                    <p className="text-slate-500 text-xs mt-0.5">CSV datasets and business records fueling your automated dashboards.</p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setActiveTab("upload")}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-2 shrink-0 cursor-pointer shadow-sm shadow-blue-500/20"
+                >
+                  <Plus size={14} /> Upload Dataset
+                </button>
+              </div>
+
+              {!userProfile.files || userProfile.files.length === 0 ? (
+                <div className="text-center py-12 px-4 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
+                  <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-3">
+                    <UploadCloud size={24} />
+                  </div>
+                  <h4 className="text-sm font-bold text-slate-800">No Datasets Uploaded Yet</h4>
+                  <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                    Upload your sales, order, or inventory CSVs to unlock deep financial and predictive insights.
+                  </p>
+                  <button
+                    onClick={() => setActiveTab("upload")}
+                    className="mt-4 px-4 py-2 bg-slate-900 text-white text-xs font-bold rounded-xl hover:bg-slate-800 transition-all cursor-pointer inline-flex items-center gap-1.5"
+                  >
+                    <Plus size={13} /> Upload First Dataset
+                  </button>
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {userProfile.files.map((file) => (
-                    <div key={file.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100 hover:border-gray-200 transition-colors">
-                        <div className="flex items-center gap-4">
-                          <div className={`p-3 shadow-sm rounded-xl ${file.status === 'failed' ? 'bg-red-100 text-red-600' : 'bg-white text-gray-600'}`}>
-                            <FileText size={20} />
-                          </div>
-                          <div>
-                            <p className="font-semibold text-gray-800">{file.filename}</p>
-                            <p className={`text-xs mt-0.5 font-medium ${file.status === 'processing' ? 'text-blue-500 animate-pulse' : file.status === 'failed' ? 'text-red-500' : 'text-green-500'}`}>
-                              {file.status === 'processing' ? 'Processing in background...' : file.status === 'failed' ? 'Failed processing' : 'Data Ready'}
-                            </p>
+                    <div
+                      key={file.id}
+                      className="flex items-center justify-between p-4 bg-slate-50/80 hover:bg-slate-50 rounded-2xl border border-slate-200/80 transition-all group"
+                    >
+                      <div className="flex items-center gap-4 min-w-0">
+                        <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 shadow-xs font-bold text-xs ${
+                          file.status === "failed"
+                            ? "bg-rose-100 text-rose-600"
+                            : file.filename.toLowerCase().endsWith(".csv")
+                            ? "bg-emerald-100 text-emerald-700"
+                            : "bg-blue-100 text-blue-700"
+                        }`}>
+                          {file.filename.toLowerCase().endsWith(".csv") ? "CSV" : "DOC"}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-bold text-slate-900 text-sm truncate" title={file.filename}>
+                            {file.filename}
+                          </p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className={`inline-flex items-center gap-1 text-[11px] font-semibold ${
+                              file.status === "processing"
+                                ? "text-blue-600 animate-pulse"
+                                : file.status === "failed"
+                                ? "text-rose-600"
+                                : "text-emerald-600"
+                            }`}>
+                              {file.status === "processing" ? (
+                                <>
+                                  <RefreshCw size={11} className="animate-spin" /> Processing in background...
+                                </>
+                              ) : file.status === "failed" ? (
+                                <>
+                                  <AlertCircle size={11} /> Processing Failed
+                                </>
+                              ) : (
+                                <>
+                                  <CheckCircle2 size={11} /> Data Ready & Synced
+                                </>
+                              )}
+                            </span>
+                            <span className="text-slate-300">•</span>
+                            <span className="text-[11px] text-slate-400">ID #{file.id}</span>
                           </div>
                         </div>
-                        <button onClick={() => handleDeleteFile(file.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Delete file and its data">
-                        <Trash2 size={20} />
-                      </button>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleDeleteFile(file.id)}
+                          className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all cursor-pointer"
+                          title="Delete file and associated transactions"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -2744,21 +3149,27 @@ export default function App() {
             </div>
 
             {/* Danger Zone: Reset Workspace */}
-            <div className="bg-white p-8 rounded-3xl shadow-sm border border-rose-100/80 hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900">Reset Workspace Data</h3>
-                  <p className="text-sm text-gray-500 mt-1 max-w-xl">
-                    Purge all uploaded files, transactions, and live store logs to start with a fresh, clean slate.
-                  </p>
+            <div className="bg-white p-8 rounded-3xl shadow-sm border border-rose-200/90 hover:shadow-md transition-all duration-300">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 border border-rose-100">
+                    <ShieldAlert size={24} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-slate-900">Reset Workspace Data</h3>
+                    <p className="text-xs text-slate-500 mt-1 max-w-xl leading-relaxed">
+                      Purge all uploaded datasets, ingested transaction logs, inventory balances, and alerts. Your user credentials and account will remain safe.
+                    </p>
+                  </div>
                 </div>
+
                 <button
                   onClick={handleResetWorkspace}
                   disabled={isResettingWorkspace}
-                  className="px-5 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded-xl text-xs border border-rose-200 transition-all flex items-center justify-center gap-2 shrink-0 cursor-pointer disabled:opacity-50"
+                  className="px-5 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded-xl text-xs border border-rose-200 transition-all flex items-center justify-center gap-2 shrink-0 cursor-pointer disabled:opacity-50 shadow-xs"
                 >
                   <Trash2 size={14} />
-                  {isResettingWorkspace ? "Purging..." : "Clear All Workspace Data"}
+                  {isResettingWorkspace ? "Purging Workspace..." : "Clear All Workspace Data"}
                 </button>
               </div>
             </div>

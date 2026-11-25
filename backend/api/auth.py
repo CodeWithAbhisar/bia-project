@@ -256,3 +256,27 @@ def verify_otp(req: VerifyOTPRequest, db: Session = Depends(get_db)):
         algorithm=ALGORITHM
     )
     return {"access_token": token, "user_id": new_user.id}
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+@router.post("/api/auth/change-password")
+def change_password(
+    req: ChangePasswordRequest,
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db)
+):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    if not user.hashed_password or not bcrypt.checkpw(req.current_password.encode('utf-8'), user.hashed_password.encode('utf-8')):
+        raise HTTPException(status_code=400, detail="Current password is incorrect.")
+        
+    validate_password_strength(req.new_password)
+    
+    salt = bcrypt.gensalt()
+    user.hashed_password = bcrypt.hashpw(req.new_password.encode('utf-8'), salt).decode('utf-8')
+    db.commit()
+    return {"status": "success", "message": "Password updated successfully."}
