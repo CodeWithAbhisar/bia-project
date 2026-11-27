@@ -1299,8 +1299,10 @@ export default function App() {
               </div>
             )}
 
-            <button type="submit" className="w-full bg-[#0A1628] hover:bg-[#111F35] text-[#F5EAD4] font-bold py-3.5 px-4 rounded-xl transition-all shadow-md hover:shadow-lg mt-2 text-xs cursor-pointer">
-              {authMode === "login" ? "Sign In to Dashboard" : "Create Account & Verify OTP"}
+            <button type="submit" disabled={isSendingOtp} className="w-full bg-[#0A1628] hover:bg-[#111F35] disabled:opacity-50 text-[#F5EAD4] font-bold py-3.5 px-4 rounded-xl transition-all shadow-md hover:shadow-lg mt-2 text-xs cursor-pointer">
+              {isSendingOtp
+                ? (authMode === "login" ? "Signing In..." : "Sending Verification Code...")
+                : (authMode === "login" ? "Sign In to Dashboard" : "Create Account & Verify OTP")}
             </button>
           </form>
             </>
