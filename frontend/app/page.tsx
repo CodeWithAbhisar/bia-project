@@ -944,12 +944,16 @@ export default function App() {
 
   if (!isMounted) {
     return (
-      <div className="flex min-h-screen bg-slate-950 items-center justify-center">
+      <div className="flex min-h-screen bg-[#FAF7F2] items-center justify-center">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center font-bold text-white shadow-lg shadow-blue-500/30 animate-pulse">
-            ⚡
+          <div className="w-10 h-10 rounded-2xl bg-[#0A1628] flex items-center justify-center shadow-lg animate-pulse">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#C5A880" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+              <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+              <line x1="12" y1="22.08" x2="12" y2="12" />
+            </svg>
           </div>
-          <p className="text-xs text-slate-400 font-medium tracking-wide">Initializing workspace...</p>
+          <p className="text-xs text-[#7A746B] font-medium tracking-wide">Initializing workspace...</p>
         </div>
       </div>
     );
@@ -957,32 +961,36 @@ export default function App() {
 
   if (!token && !showAuthForm) {
     return (
-      <div className="flex min-h-screen bg-slate-950 text-white relative overflow-hidden">
-        {/* Background glow meshes */}
-        <div className="absolute -top-40 -left-40 w-[600px] h-[600px] bg-blue-600/20 rounded-full filter blur-[140px] pointer-events-none"></div>
-        <div className="absolute -bottom-40 -right-40 w-[600px] h-[600px] bg-indigo-600/20 rounded-full filter blur-[140px] pointer-events-none"></div>
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-purple-600/10 rounded-full filter blur-[160px] pointer-events-none"></div>
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff08_1px,transparent_1px),linear-gradient(to_bottom,#ffffff08_1px,transparent_1px)] bg-[size:32px_32px] pointer-events-none"></div>
+      <div className="flex min-h-screen bg-[#FAF7F2] text-stone-900 relative overflow-hidden">
+        {/* Warm ambient glow meshes */}
+        <div className="absolute -top-40 -left-40 w-[600px] h-[600px] bg-[#C5A880]/15 rounded-full filter blur-[140px] pointer-events-none"></div>
+        <div className="absolute -bottom-40 -right-40 w-[600px] h-[600px] bg-[#D4B98E]/20 rounded-full filter blur-[140px] pointer-events-none"></div>
+        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-[#0A1628]/5 rounded-full filter blur-[160px] pointer-events-none"></div>
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(197,168,128,0.08)_1px,transparent_1px),linear-gradient(to_bottom,rgba(197,168,128,0.08)_1px,transparent_1px)] bg-[size:32px_32px] pointer-events-none"></div>
 
         {/* Navbar */}
         <nav className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-6 sm:px-10 py-5">
           <div className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-500 flex items-center justify-center shadow-lg shadow-blue-500/30 border border-white/20">
-              <Sparkles size={18} className="text-white" />
+            <div className="w-9 h-9 rounded-xl bg-[#0A1628] border border-[#233550] flex items-center justify-center shadow-md">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C5A880" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+                <line x1="12" y1="22.08" x2="12" y2="12" />
+              </svg>
             </div>
-            <span className="font-extrabold text-lg tracking-tight">BIA Platform</span>
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">PRO</span>
+            <span className="font-extrabold text-lg tracking-tight text-[#0A1628]">BIA Platform</span>
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[#241E14] text-[#D4B98E] border border-[#544328]">PRO</span>
           </div>
           <div className="flex items-center gap-3">
             <button
               onClick={() => { setAuthMode("login"); setShowAuthForm(true); }}
-              className="px-4 py-2 text-xs font-semibold text-slate-300 hover:text-white transition-colors cursor-pointer"
+              className="px-4 py-2 text-xs font-semibold text-[#7A746B] hover:text-[#0A1628] transition-colors cursor-pointer"
             >
               Sign In
             </button>
             <button
               onClick={() => { setAuthMode("register"); setShowAuthForm(true); }}
-              className="px-4 py-2 text-xs font-bold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl shadow-lg shadow-blue-600/30 transition-all cursor-pointer"
+              className="px-4 py-2 text-xs font-bold bg-[#0A1628] hover:bg-[#111F35] text-[#F5EAD4] rounded-xl shadow-md transition-all cursor-pointer"
             >
               Create Account
             </button>
@@ -991,26 +999,26 @@ export default function App() {
 
         {/* Hero */}
         <div className="relative z-10 flex flex-col items-center justify-center min-h-screen text-center px-6 pt-20">
-          <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/30 mb-6 animate-in fade-in duration-500">
+          <span className="text-[11px] font-bold px-4 py-1.5 rounded-full bg-[#241E14] border border-[#544328] text-[#D4B98E] mb-6 animate-in fade-in duration-500 shadow-sm">
             ✦ All-Rounder AI Business Agent
           </span>
-          <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight leading-tight max-w-3xl animate-in fade-in duration-700">
+          <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight leading-tight max-w-3xl animate-in fade-in duration-700 text-[#0A1628]">
             Business Intelligence,
-            <span className="bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400 bg-clip-text text-transparent"> Reimagined</span>
+            <span className="font-serif italic text-[#8A6A34]"> Reimagined</span>
           </h1>
-          <p className="text-slate-400 text-sm sm:text-base max-w-xl mt-6 leading-relaxed animate-in fade-in duration-700">
+          <p className="text-[#7A746B] text-sm sm:text-base max-w-xl mt-6 leading-relaxed animate-in fade-in duration-700">
             Upload your data, monitor live business activity, track cashflow & inventory, and get proactive AI insights — all in one intelligent platform.
           </p>
           <div className="flex flex-col sm:flex-row items-center gap-4 mt-10 animate-in fade-in duration-700">
             <button
               onClick={() => { setAuthMode("register"); setShowAuthForm(true); }}
-              className="px-8 py-3.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold text-sm rounded-2xl shadow-xl shadow-blue-600/30 hover:shadow-blue-600/40 transition-all flex items-center gap-2 cursor-pointer"
+              className="px-8 py-3.5 bg-[#0A1628] hover:bg-[#111F35] text-[#F5EAD4] font-bold text-sm rounded-2xl shadow-lg hover:shadow-xl transition-all flex items-center gap-2 cursor-pointer"
             >
               Get Started Free <ArrowRight size={16} />
             </button>
             <button
               onClick={() => { setAuthMode("login"); setShowAuthForm(true); }}
-              className="px-8 py-3.5 bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 text-white font-bold text-sm rounded-2xl transition-all cursor-pointer"
+              className="px-8 py-3.5 bg-white hover:bg-[#F5EFE6] border border-[#DDD5C9] text-[#2C2417] font-bold text-sm rounded-2xl shadow-xs transition-all cursor-pointer"
             >
               Sign In
             </button>
@@ -1022,41 +1030,41 @@ export default function App() {
 
   if (!token) {
     return (
-      <div className="flex min-h-screen bg-slate-950 items-center justify-center p-4 relative overflow-hidden">
-        {/* Modern SaaS background glow meshes */}
-        <div className="absolute -top-40 -left-40 w-[600px] h-[600px] bg-blue-600/20 rounded-full filter blur-[140px] pointer-events-none"></div>
-        <div className="absolute -bottom-40 -right-40 w-[600px] h-[600px] bg-indigo-600/20 rounded-full filter blur-[140px] pointer-events-none"></div>
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-purple-600/10 rounded-full filter blur-[160px] pointer-events-none"></div>
+      <div className="flex min-h-screen bg-[#FAF7F2] items-center justify-center p-4 relative overflow-hidden">
+        {/* Warm ambient glow meshes */}
+        <div className="absolute -top-40 -left-40 w-[600px] h-[600px] bg-[#C5A880]/15 rounded-full filter blur-[140px] pointer-events-none"></div>
+        <div className="absolute -bottom-40 -right-40 w-[600px] h-[600px] bg-[#D4B98E]/20 rounded-full filter blur-[140px] pointer-events-none"></div>
+        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-[#0A1628]/5 rounded-full filter blur-[160px] pointer-events-none"></div>
 
         {/* Ambient Subtle Grid */}
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff08_1px,transparent_1px),linear-gradient(to_bottom,#ffffff08_1px,transparent_1px)] bg-[size:32px_32px] pointer-events-none"></div>
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(197,168,128,0.08)_1px,transparent_1px),linear-gradient(to_bottom,rgba(197,168,128,0.08)_1px,transparent_1px)] bg-[size:32px_32px] pointer-events-none"></div>
         
-        <div className="bg-slate-900/80 backdrop-blur-2xl border border-white/10 p-8 sm:p-10 rounded-3xl shadow-[0_20px_70px_rgba(0,0,0,0.5)] w-full max-w-[440px] relative z-10 text-white animate-in fade-in duration-500">
+        <div className="bg-white/90 backdrop-blur-2xl border border-[#EBE5DB] p-8 sm:p-10 rounded-3xl shadow-[0_20px_50px_rgba(10,22,40,0.08)] w-full max-w-[440px] relative z-10 text-stone-900 animate-in fade-in duration-500">
           {isOtpStep ? (
             <div className="flex flex-col animate-in fade-in duration-300">
               <div className="flex flex-col items-center justify-center mb-6">
-                <div className="bg-blue-600/20 border border-blue-500/30 text-blue-400 p-4 rounded-2xl mb-4 shadow-lg shadow-blue-500/20">
+                <div className="bg-[#FAF7F2] border border-[#DDD5C9] text-[#8A6A34] p-4 rounded-2xl mb-4 shadow-sm">
                   <Mail size={32} />
                 </div>
-                <h2 className="text-2xl font-extrabold text-white tracking-tight text-center">
+                <h2 className="text-2xl font-extrabold text-[#0A1628] tracking-tight text-center">
                   Verify Your Email
                 </h2>
-                <p className="text-slate-400 mt-2 text-xs text-center leading-relaxed">
+                <p className="text-[#7A746B] mt-2 text-xs text-center leading-relaxed">
                   We sent a 6-digit verification code to<br />
-                  <span className="font-semibold text-white">{email}</span>
+                  <span className="font-semibold text-[#2C2417]">{email}</span>
                 </p>
-              </div>
+            </div>
 
-              {authError && (
-                <div className="mb-5 p-3 bg-rose-500/10 border border-rose-500/30 text-rose-400 rounded-xl text-xs text-center font-medium flex items-center justify-center gap-2">
+            {authError && (
+                <div className="mb-5 p-3 bg-rose-50 border border-rose-200 text-rose-600 rounded-xl text-xs text-center font-medium flex items-center justify-center gap-2">
                   <AlertTriangle size={15} />
                   {authError}
                 </div>
-              )}
+            )}
 
-              <form onSubmit={handleVerifyOtp} className="flex flex-col gap-4">
+            <form onSubmit={handleVerifyOtp} className="flex flex-col gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-2 text-center">
+                  <label className="block text-xs font-semibold text-[#7A746B] mb-2 text-center">
                     Enter Verification Code
                   </label>
                   <input
@@ -1065,7 +1073,7 @@ export default function App() {
                     placeholder="123456"
                     value={otpCode}
                     onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
-                    className="w-full text-center text-3xl font-extrabold tracking-[10px] font-mono p-3 bg-slate-800/80 border border-slate-700 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-white placeholder-slate-600"
+                    className="w-full text-center text-3xl font-extrabold tracking-[10px] font-mono p-3 bg-white border border-[#DDD5C9] rounded-2xl outline-none focus:ring-2 focus:ring-[#C5A880] focus:border-transparent transition-all text-[#2C2417] placeholder-[#C9C2B8]"
                     required
                     autoFocus
                   />
@@ -1074,18 +1082,18 @@ export default function App() {
                 <button
                   type="submit"
                   disabled={isSendingOtp}
-                  className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 text-white font-bold py-3.5 px-4 rounded-2xl transition-all shadow-lg shadow-blue-600/30 hover:shadow-blue-600/40 mt-1 cursor-pointer text-sm"
+                  className="w-full bg-[#0A1628] hover:bg-[#111F35] disabled:opacity-50 text-[#F5EAD4] font-bold py-3.5 px-4 rounded-2xl transition-all shadow-md hover:shadow-lg mt-1 cursor-pointer text-sm"
                 >
                   {isSendingOtp ? "Verifying Code..." : "Verify & Launch Dashboard"}
                 </button>
-              </form>
+            </form>
 
-              <div className="flex flex-col items-center gap-3 mt-6 text-xs">
+            <div className="flex flex-col items-center gap-3 mt-6 text-xs">
                 <button
                   type="button"
                   disabled={resendCooldown > 0 || isSendingOtp}
                   onClick={handleResendOtp}
-                  className="font-semibold text-blue-400 hover:text-blue-300 disabled:text-slate-500 transition-colors cursor-pointer"
+                  className="font-semibold text-[#8A6A34] hover:text-[#5C451C] disabled:text-[#B7B0A5] transition-colors cursor-pointer"
                 >
                   {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : "Didn't receive code? Resend"}
                 </button>
@@ -1096,7 +1104,7 @@ export default function App() {
                     setOtpCode("");
                     setAuthError("");
                   }}
-                  className="text-slate-400 hover:text-slate-200 underline transition-colors cursor-pointer"
+                  className="text-[#7A746B] hover:text-[#2C2417] underline transition-colors cursor-pointer"
                 >
                   Edit registration info
                 </button>
@@ -1109,33 +1117,37 @@ export default function App() {
             <button
               type="button"
               onClick={() => { setShowAuthForm(false); setAuthError(""); }}
-              className="self-start text-slate-400 hover:text-white text-xs flex items-center gap-1 mb-4 transition-colors cursor-pointer"
+              className="self-start text-[#7A746B] hover:text-[#2C2417] text-xs flex items-center gap-1 mb-4 transition-colors cursor-pointer"
             >
               <ArrowRight size={14} className="rotate-180" /> Back to Home
             </button>
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-500 flex items-center justify-center mb-4 shadow-xl shadow-blue-500/30 border border-white/20">
-              <Sparkles size={28} className="text-white" />
+            <div className="w-14 h-14 rounded-2xl bg-[#0A1628] border border-[#233550] flex items-center justify-center mb-4 shadow-lg">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#C5A880" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+                <line x1="12" y1="22.08" x2="12" y2="12" />
+              </svg>
             </div>
             <div className="flex items-center gap-2 mb-1">
-              <h2 className="text-2xl font-extrabold text-white tracking-tight">BIA Platform</h2>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">
+              <h2 className="text-2xl font-extrabold text-[#0A1628] tracking-tight">BIA Platform</h2>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[#241E14] text-[#D4B98E] border border-[#544328]">
                 PRO
               </span>
             </div>
-            <p className="text-slate-400 text-xs font-medium">
+            <p className="text-[#7A746B] text-xs font-medium">
               All-Rounder AI Business Agent & Intelligence Platform
             </p>
           </div>
 
           {/* Segmented Sign In / Sign Up Switcher */}
-          <div className="grid grid-cols-2 p-1 bg-slate-800/80 rounded-2xl border border-slate-700/80 mb-6">
+          <div className="grid grid-cols-2 p-1 bg-[#F5EFE6] rounded-2xl border border-[#DDD5C9] mb-6">
             <button
               type="button"
               onClick={() => { setAuthMode("login"); setAuthError(""); }}
               className={`py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
                 authMode === "login" 
-                  ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/20" 
-                  : "text-slate-400 hover:text-white"
+                  ? "bg-[#0A1628] text-[#F5EAD4] shadow-md" 
+                  : "text-[#7A746B] hover:text-[#2C2417]"
               }`}
             >
               Sign In
@@ -1145,8 +1157,8 @@ export default function App() {
               onClick={() => { setAuthMode("register"); setAuthError(""); }}
               className={`py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
                 authMode === "register" 
-                  ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/20" 
-                  : "text-slate-400 hover:text-white"
+                  ? "bg-[#0A1628] text-[#F5EAD4] shadow-md" 
+                  : "text-[#7A746B] hover:text-[#2C2417]"
               }`}
             >
               Create Account
@@ -1165,7 +1177,7 @@ export default function App() {
                     alert("Google Sign-In is initializing. Please try again in a moment.");
                   }
                 }} 
-                className="flex items-center justify-center gap-3 w-full p-3 bg-slate-800/90 border border-slate-700/80 rounded-xl hover:bg-slate-700/80 transition-all font-semibold text-white text-xs cursor-pointer shadow-sm"
+                className="flex items-center justify-center gap-3 w-full p-3 bg-white border border-[#DDD5C9] rounded-xl hover:bg-[#F5EFE6] transition-all font-semibold text-[#2C2417] text-xs cursor-pointer shadow-xs"
               >
                 <svg className="w-4 h-4" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
                 Continue with Google
@@ -1174,12 +1186,12 @@ export default function App() {
           </div>
 
           <div className="relative mb-5">
-            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-800"></div></div>
-            <div className="relative flex justify-center text-xs"><span className="px-3 bg-slate-900 text-slate-500 font-medium">Or continue with email</span></div>
+            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-[#EBE5DB]"></div></div>
+            <div className="relative flex justify-center text-xs"><span className="px-3 bg-white text-[#B7B0A5] font-medium">Or continue with email</span></div>
           </div>
 
           {authError && (
-            <div className="mb-4 p-3 bg-rose-500/10 border border-rose-500/30 text-rose-400 rounded-xl text-xs text-center font-medium flex items-center justify-center gap-2">
+            <div className="mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-600 rounded-xl text-xs text-center font-medium flex items-center justify-center gap-2">
               <AlertTriangle size={15}/>{authError}
             </div>
           )}
@@ -1189,27 +1201,27 @@ export default function App() {
             {authMode === "register" && (
               <>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Full Name</label>
-                  <input type="text" placeholder="John Doe" value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full p-3 bg-slate-800/80 border border-slate-700/80 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-white text-xs placeholder-slate-500" required />
+                  <label className="block text-xs font-semibold text-[#7A746B] mb-1">Full Name</label>
+                  <input type="text" placeholder="John Doe" value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full p-3 bg-white border border-[#DDD5C9] rounded-xl outline-none focus:ring-2 focus:ring-[#C5A880] focus:border-transparent transition-all text-[#2C2417] text-xs placeholder-[#B7B0A5]" required />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Company Name</label>
-                  <input type="text" placeholder="Acme Inc" value={company} onChange={(e) => setCompany(e.target.value)} className="w-full p-3 bg-slate-800/80 border border-slate-700/80 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-white text-xs placeholder-slate-500" required />
+                  <label className="block text-xs font-semibold text-[#7A746B] mb-1">Company Name</label>
+                  <input type="text" placeholder="Acme Inc" value={company} onChange={(e) => setCompany(e.target.value)} className="w-full p-3 bg-white border border-[#DDD5C9] rounded-xl outline-none focus:ring-2 focus:ring-[#C5A880] focus:border-transparent transition-all text-[#2C2417] text-xs placeholder-[#B7B0A5]" required />
                 </div>
               </>
             )}
 
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Work Email</label>
-              <input type="email" placeholder="you@company.com" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full p-3 bg-slate-800/80 border border-slate-700/80 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-white text-xs placeholder-slate-500" required />
+              <label className="block text-xs font-semibold text-[#7A746B] mb-1">Work Email</label>
+              <input type="email" placeholder="you@company.com" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full p-3 bg-white border border-[#DDD5C9] rounded-xl outline-none focus:ring-2 focus:ring-[#C5A880] focus:border-transparent transition-all text-[#2C2417] text-xs placeholder-[#B7B0A5]" required />
             </div>
             
             <div>
               <div className="flex justify-between items-center mb-1">
                 <label className="block text-xs font-semibold text-slate-300">Password</label>
-                {authMode === "login" && <a href="#" className="text-xs font-semibold text-blue-400 hover:text-blue-300">Forgot?</a>}
+                {authMode === "login" && <a href="#" className="text-xs font-semibold text-[#8A6A34] hover:text-[#5C451C]">Forgot?</a>}
               </div>
-              <input type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full p-3 bg-slate-800/80 border border-slate-700/80 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-white text-xs placeholder-slate-500" required />
+              <input type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full p-3 bg-white border border-[#DDD5C9] rounded-xl outline-none focus:ring-2 focus:ring-[#C5A880] focus:border-transparent transition-all text-[#2C2417] text-xs placeholder-[#B7B0A5]" required />
               
               {authMode === "register" && password.length > 0 && (() => {
                 const hasLength = password.length >= 8;
@@ -1220,9 +1232,9 @@ export default function App() {
                 const score = [hasLength, hasUpper, hasLower, hasNumber, hasSpecial].filter(Boolean).length;
 
                 return (
-                  <div className="mt-2.5 p-3 bg-slate-950/60 border border-slate-800 rounded-xl flex flex-col gap-2 animate-in fade-in duration-200">
+                  <div className="mt-2.5 p-3 bg-[#FAF7F2] border border-[#EBE5DB] rounded-xl flex flex-col gap-2 animate-in fade-in duration-200">
                     <div className="flex items-center justify-between text-[11px]">
-                      <span className="text-slate-400 font-medium">Password Strength:</span>
+                      <span className="text-[#7A746B] font-medium">Password Strength:</span>
                       <span className={`font-bold ${
                         score <= 2 ? "text-rose-400" :
                         score <= 4 ? "text-amber-400" :
@@ -1235,34 +1247,34 @@ export default function App() {
                     {/* 4-segment indicator */}
                     <div className="grid grid-cols-4 gap-1.5 h-1.5 w-full">
                       <div className={`rounded-full h-full transition-all ${
-                        score >= 1 ? (score <= 2 ? "bg-rose-500" : score <= 4 ? "bg-amber-500" : "bg-emerald-500") : "bg-slate-700"
+                        score >= 1 ? (score <= 2 ? "bg-rose-400" : score <= 4 ? "bg-[#C5A880]" : "bg-emerald-500") : "bg-[#DDD5C9]"
                       }`} />
                       <div className={`rounded-full h-full transition-all ${
-                        score >= 2 ? (score <= 2 ? "bg-rose-500" : score <= 4 ? "bg-amber-500" : "bg-emerald-500") : "bg-slate-700"
+                        score >= 2 ? (score <= 2 ? "bg-rose-400" : score <= 4 ? "bg-[#C5A880]" : "bg-emerald-500") : "bg-[#DDD5C9]"
                       }`} />
                       <div className={`rounded-full h-full transition-all ${
-                        score >= 3 ? (score <= 4 ? "bg-amber-500" : "bg-emerald-500") : "bg-slate-700"
+                        score >= 3 ? (score <= 4 ? "bg-[#C5A880]" : "bg-emerald-500") : "bg-[#DDD5C9]"
                       }`} />
                       <div className={`rounded-full h-full transition-all ${
-                        score === 5 ? "bg-emerald-500" : "bg-slate-700"
+                        score === 5 ? "bg-emerald-500" : "bg-[#DDD5C9]"
                       }`} />
                     </div>
 
                     {/* Live Checklist */}
                     <div className="grid grid-cols-2 gap-1 mt-0.5 text-[10px]">
-                      <span className={`flex items-center gap-1.5 ${hasLength ? "text-emerald-400 font-semibold" : "text-slate-500"}`}>
+                      <span className={`flex items-center gap-1.5 ${hasLength ? "text-emerald-600 font-semibold" : "text-[#B7B0A5]"}`}>
                         <span>{hasLength ? "✓" : "○"}</span> 8+ characters
                       </span>
-                      <span className={`flex items-center gap-1.5 ${hasUpper ? "text-emerald-400 font-semibold" : "text-slate-500"}`}>
+                      <span className={`flex items-center gap-1.5 ${hasUpper ? "text-emerald-600 font-semibold" : "text-[#B7B0A5]"}`}>
                         <span>{hasUpper ? "✓" : "○"}</span> 1 Uppercase (A-Z)
                       </span>
-                      <span className={`flex items-center gap-1.5 ${hasLower ? "text-emerald-400 font-semibold" : "text-slate-500"}`}>
+                      <span className={`flex items-center gap-1.5 ${hasLower ? "text-emerald-600 font-semibold" : "text-[#B7B0A5]"}`}>
                         <span>{hasLower ? "✓" : "○"}</span> 1 Lowercase (a-z)
                       </span>
-                      <span className={`flex items-center gap-1.5 ${hasNumber ? "text-emerald-400 font-semibold" : "text-slate-500"}`}>
+                      <span className={`flex items-center gap-1.5 ${hasNumber ? "text-emerald-600 font-semibold" : "text-[#B7B0A5]"}`}>
                         <span>{hasNumber ? "✓" : "○"}</span> 1 Number (0-9)
                       </span>
-                      <span className={`col-span-2 flex items-center gap-1.5 ${hasSpecial ? "text-emerald-400 font-semibold" : "text-slate-500"}`}>
+                      <span className={`col-span-2 flex items-center gap-1.5 ${hasSpecial ? "text-emerald-600 font-semibold" : "text-[#B7B0A5]"}`}>
                         <span>{hasSpecial ? "✓" : "○"}</span> 1 Special symbol (!@#$...)
                       </span>
                     </div>
@@ -1273,21 +1285,21 @@ export default function App() {
 
             {authMode === "register" && (
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">Confirm Password</label>
-                <input type="password" placeholder="••••••••" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="w-full p-3 bg-slate-800/80 border border-slate-700/80 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-white text-xs placeholder-slate-500" required />
+                <label className="block text-xs font-semibold text-[#7A746B] mb-1">Confirm Password</label>
+                <input type="password" placeholder="••••••••" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="w-full p-3 bg-white border border-[#DDD5C9] rounded-xl outline-none focus:ring-2 focus:ring-[#C5A880] focus:border-transparent transition-all text-[#2C2417] text-xs placeholder-[#B7B0A5]" required />
               </div>
             )}
 
             {authMode === "register" && (
               <div className="flex items-start gap-2 mt-1">
-                <input type="checkbox" id="terms" checked={termsAccepted} onChange={(e) => setTermsAccepted(e.target.checked)} className="mt-0.5 rounded border-slate-700 text-blue-600 focus:ring-blue-500 bg-slate-800" required />
-                <label htmlFor="terms" className="text-[11px] text-slate-400 leading-relaxed">
-                  I agree to the <a href="#" className="text-blue-400 hover:underline">Terms of Service</a> and <a href="#" className="text-blue-400 hover:underline">Privacy Policy</a>.
+                <input type="checkbox" id="terms" checked={termsAccepted} onChange={(e) => setTermsAccepted(e.target.checked)} className="mt-0.5 rounded border-[#DDD5C9] text-[#0A1628] focus:ring-[#C5A880] bg-white" required />
+                <label htmlFor="terms" className="text-[11px] text-[#7A746B] leading-relaxed">
+                  I agree to the <a href="#" className="text-[#8A6A34] hover:underline">Terms of Service</a> and <a href="#" className="text-[#8A6A34] hover:underline">Privacy Policy</a>.
                 </label>
               </div>
             )}
 
-            <button type="submit" className="w-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold py-3.5 px-4 rounded-xl transition-all shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 mt-2 text-xs cursor-pointer">
+            <button type="submit" className="w-full bg-[#0A1628] hover:bg-[#111F35] text-[#F5EAD4] font-bold py-3.5 px-4 rounded-xl transition-all shadow-md hover:shadow-lg mt-2 text-xs cursor-pointer">
               {authMode === "login" ? "Sign In to Dashboard" : "Create Account & Verify OTP"}
             </button>
           </form>
