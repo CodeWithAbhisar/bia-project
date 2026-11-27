@@ -10,15 +10,21 @@ def process_document(file_path: str, user_id: int):
     text = ""
     
     # Extract Text
-    if file_path.endswith('.pdf'):
+    lower_path = file_path.lower()
+    if lower_path.endswith('.pdf'):
         reader = PdfReader(file_path)
         for page in reader.pages:
             page_text = page.extract_text()
             if page_text:
                 text += page_text + "\n"
-    elif file_path.endswith('.txt'):
-        with open(file_path, 'r', encoding='utf-8') as f:
-            text = f.read()
+    elif lower_path.endswith('.txt'):
+        for enc in ('utf-8-sig', 'utf-8', 'cp1252', 'latin1'):
+            try:
+                with open(file_path, 'r', encoding=enc) as f:
+                    text = f.read()
+                break
+            except UnicodeDecodeError:
+                continue
             
     if not text.strip():
         raise ValueError("Document contains no readable text.")

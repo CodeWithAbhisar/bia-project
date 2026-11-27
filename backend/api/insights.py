@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 import pandas as pd
 
-from models.database import get_db, Transaction
+from models.database import get_db, Transaction, FileRecord, IntegrationSetting
 from api.auth import get_current_user_id # 1. Import the decoder
 
 router = APIRouter()
@@ -11,6 +11,17 @@ router = APIRouter()
 @router.get("/api/insights")
 def get_insights(db: Session = Depends(get_db), user_id: int = Depends(get_current_user_id)):
     try:
+        file_count = db.query(FileRecord).filter(
+            FileRecord.user_id == user_id,
+            FileRecord.status == "completed"
+        ).count()
+        connected_count = db.query(IntegrationSetting).filter(
+            IntegrationSetting.user_id == user_id,
+            IntegrationSetting.is_connected == 1
+        ).count()
+        if file_count == 0 and connected_count == 0:
+            return {"insights": [{"title": "No Data", "description": "Upload data to see insights.", "type": "info"}]}
+
         daily_sales = db.query(
             Transaction.date,
             func.sum(Transaction.amount).label('daily_revenue')

@@ -171,7 +171,7 @@ export default function App() {
     created_at?: string;
     transaction_count?: number;
     connected_integrations?: number;
-    files: Array<{ id: number; filename: string; status: string }>;
+    files: Array<{ id: number; filename: string; status: string; error_message?: string | null }>;
   } | null>(null);
   const [editingProfile, setEditingProfile] = useState(false);
   const [editFullName, setEditFullName] = useState("");
@@ -691,11 +691,13 @@ export default function App() {
   const handleUpload = async () => {
     if (!file) return;
     setLoading(true);
+    setUploadError("");
     const formData = new FormData();
     formData.append("file", file);
     try {
       const config = { headers: { Authorization: `Bearer ${token}` } };
-      await axios.post(API_BASE + "/api/upload", formData, config);
+      const uploadRes = await axios.post(API_BASE + "/api/upload", formData, config);
+      const uploadedFileId = uploadRes.data?.file_id;
       
       // Reset upload inputs immediately
       setFile(null);
@@ -703,24 +705,38 @@ export default function App() {
       if (fileInput) fileInput.value = "";
       setChatLog([]); 
 
-      // Poll until processing is complete
+      // Poll specifically for this uploaded file until processing completes (max 3 mins)
+      let pollCount = 0;
       const pollInterval = setInterval(async () => {
+        pollCount += 1;
         try {
           const res = await axios.get(API_BASE + "/api/user/profile", config);
           setUserProfile(res.data);
+
+          const targetFile = uploadedFileId
+            ? res.data.files?.find((f: any) => f.id === uploadedFileId)
+            : res.data.files?.[res.data.files.length - 1];
+
+          const stillProcessing = targetFile
+            ? targetFile.status === "processing"
+            : res.data.files?.some((f: any) => f.status === "processing");
           
-          const isProcessing = res.data.files.some((f: any) => f.status === "processing");
-          
-          if (!isProcessing) {
+          if (!stillProcessing || pollCount >= 90) {
             clearInterval(pollInterval);
             setLoading(false);
             
-            const hasFailed = res.data.files.some((f: any) => f.status === "failed");
-            if (hasFailed) {
-              alert("Data Processing Failed. Check file format.");
+            if (targetFile?.status === "failed") {
+              const reason = targetFile.error_message || "Data Processing Failed. Check file format.";
+              setUploadError(reason);
+              setStreamToast({ message: `❌ ${reason}`, type: "warning" });
+              setTimeout(() => setStreamToast(null), 6000);
+            } else if (stillProcessing) {
+              setUploadError("Processing is taking longer than expected. Check Account & Files shortly.");
             } else {
-              alert("Processing Complete! Data ready.");
+              setStreamToast({ message: "✅ Dataset processed successfully! Dashboard updated.", type: "success" });
+              setTimeout(() => setStreamToast(null), 4000);
               fetchAllData();
+              setActiveTab("dashboard");
             }
           }
         } catch {
@@ -732,9 +748,9 @@ export default function App() {
     } catch (e: any) {
       setLoading(false);
       if (e.response && e.response.data && e.response.data.detail) {
-        alert("Upload Error: " + e.response.data.detail);
+        setUploadError(e.response.data.detail);
       } else {
-        alert("Upload failed. Check server.");
+        setUploadError("Upload failed. Please check the file and try again.");
       }
     }
   };
@@ -888,7 +904,7 @@ export default function App() {
   };
 
   const hasAnyData = useMemo(() => {
-    const hasFiles = Boolean(userProfile?.files && userProfile.files.length > 0);
+    const hasFiles = Boolean(userProfile?.files && userProfile.files.some((f) => f.status === "completed"));
     const hasChannels = activeChannelsCount > 0;
     return hasFiles || hasChannels;
   }, [userProfile?.files, activeChannelsCount]);
@@ -3326,7 +3342,7 @@ export default function App() {
                                 </>
                               ) : file.status === "failed" ? (
                                 <>
-                                  <AlertCircle size={11} /> Processing Failed
+                                  <AlertCircle size={11} /> {file.error_message ? `Processing Failed: ${file.error_message}` : "Processing Failed"}
                                 </>
                               ) : (
                                 <>

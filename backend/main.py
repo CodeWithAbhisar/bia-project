@@ -36,42 +36,62 @@ app.add_middleware(
 import uuid
 
 def background_process_file(file_location: str, user_id: int, file_id: int, filename: str):
-    from models.database import SessionLocal, FileRecord
+    from models.database import SessionLocal, FileRecord, Transaction
     db = SessionLocal()
     try:
-        if filename.lower().endswith('.csv'):
+        lower_name = filename.lower()
+        if lower_name.endswith('.csv'):
             from services.etl_service import process_and_load_csv
             process_and_load_csv(file_location, user_id=user_id, file_id=file_id)
-        elif filename.lower().endswith(('.pdf', '.txt')):
+        elif lower_name.endswith(('.pdf', '.txt')):
             from services.vector_service import process_document
             process_document(file_location, user_id=user_id)
         else:
-            raise ValueError("Unsupported file type")
+            raise ValueError("Unsupported file type. Please upload .csv, .pdf, or .txt.")
         
         # update status
         record = db.query(FileRecord).filter(FileRecord.id == file_id).first()
         if record:
             record.status = "completed"
+            record.error_message = None
             db.commit()
     except Exception as e:
         import traceback
         traceback.print_exc()
-        record = db.query(FileRecord).filter(FileRecord.id == file_id).first()
-        if record:
-            record.status = "failed"
+        db.rollback()
+        try:
+            # Remove any partially committed transactions from this failed file
+            db.query(Transaction).filter(Transaction.file_id == file_id).delete()
+            record = db.query(FileRecord).filter(FileRecord.id == file_id).first()
+            if record:
+                record.status = "failed"
+                record.error_message = str(e)[:500]
             db.commit()
+        except Exception:
+            db.rollback()
     finally:
         if os.path.exists(file_location):
-            os.remove(file_location)
+            try:
+                os.remove(file_location)
+            except Exception:
+                pass
         db.close()
 
 @app.post("/api/upload")
 def upload_data(file: UploadFile = File(...), background_tasks: BackgroundTasks = BackgroundTasks(), user_id: int = Depends(get_current_user_id), db: Session = Depends(get_db)):
+    filename = file.filename or "dataset.csv"
+    if not filename.lower().endswith(('.csv', '.pdf', '.txt')):
+        raise HTTPException(status_code=400, detail="Unsupported file format. Please upload a .csv, .pdf, or .txt file.")
+
     # Generate unique and safe filename to prevent traversal and race conditions
-    safe_filename = "".join(c for c in file.filename if c.isalnum() or c in "._-")
+    safe_filename = "".join(c for c in filename if c.isalnum() or c in "._-")
     file_location = f"temp_{uuid.uuid4().hex}_{safe_filename}"
     with open(file_location, "wb+") as file_object:
         shutil.copyfileobj(file.file, file_object)
+
+    if os.path.getsize(file_location) == 0:
+        os.remove(file_location)
+        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
     
     # Calculate file hash to prevent duplicates
     sha256_hash = hashlib.sha256()
@@ -90,15 +110,22 @@ def upload_data(file: UploadFile = File(...), background_tasks: BackgroundTasks 
     if existing_file:
         os.remove(file_location)
         raise HTTPException(status_code=400, detail="This exact file has already been uploaded.")
+
+    # Clean up any stale failed record with the same hash/filename so retries start fresh
+    db.query(FileRecord).filter(
+        FileRecord.user_id == user_id,
+        FileRecord.file_hash == file_hash,
+        FileRecord.status == "failed"
+    ).delete()
     
     # Save the record in "processing" state
-    new_record = FileRecord(user_id=user_id, file_hash=file_hash, filename=file.filename, status="processing")
+    new_record = FileRecord(user_id=user_id, file_hash=file_hash, filename=filename, status="processing")
     db.add(new_record)
     db.commit()
     db.refresh(new_record)
     
     # Queue the background processing!
-    background_tasks.add_task(background_process_file, file_location, user_id, new_record.id, file.filename)
+    background_tasks.add_task(background_process_file, file_location, user_id, new_record.id, filename)
     
     return {"status": "Processing", "message": "File is successfully queued in the background.", "file_id": new_record.id}
 
@@ -147,7 +174,15 @@ def get_user_profile(user_id: int = Depends(get_current_user_id), db: Session = 
             "created_at": created_at_val,
             "transaction_count": transaction_count,
             "connected_integrations": connected_integrations,
-            "files": [{"id": f.id, "filename": f.filename, "status": f.status} for f in files]
+            "files": [
+                {
+                    "id": f.id,
+                    "filename": f.filename,
+                    "status": f.status,
+                    "error_message": getattr(f, "error_message", None)
+                }
+                for f in files
+            ]
         }
     except HTTPException:
         raise

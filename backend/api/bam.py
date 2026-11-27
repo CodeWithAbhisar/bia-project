@@ -60,7 +60,10 @@ def get_bam_live_status(
     user_id: int = Depends(get_current_user_id)
 ):
     """Provides high-frequency live operational pulse for Real-Time Activity Monitoring."""
-    file_count = db.query(FileRecord).filter(FileRecord.user_id == user_id).count()
+    file_count = db.query(FileRecord).filter(
+        FileRecord.user_id == user_id,
+        FileRecord.status == "completed"
+    ).count()
     connected_count = db.query(IntegrationSetting).filter(
         IntegrationSetting.user_id == user_id,
         IntegrationSetting.is_connected == 1
@@ -469,12 +472,31 @@ def sync_google_sheet(
             raise HTTPException(status_code=400, detail="Could not access Google Sheet. Please check that sharing is set to 'Anyone with the link can view'.")
         
         temp_path = f"temp_gsheet_{user_id}_{int(datetime.now().timestamp())}.csv"
-        with open(temp_path, "wb") as f:
-            f.write(res.content)
-            
-        process_and_load_csv(temp_path, user_id=user_id)
-        if os.path.exists(temp_path):
-            os.remove(temp_path)
+        try:
+            with open(temp_path, "wb") as f:
+                f.write(res.content)
+
+            sheet_name = f"Google Sheet ({sheet_id[:8] if match else 'Live Sync'})"
+            import hashlib
+            file_hash = hashlib.sha256(res.content).hexdigest()
+            existing = db.query(FileRecord).filter(
+                FileRecord.user_id == user_id,
+                FileRecord.file_hash == file_hash,
+                FileRecord.status == "completed"
+            ).first()
+            if existing:
+                raise HTTPException(status_code=400, detail="This exact Google Sheet snapshot has already been synced.")
+
+            rec = FileRecord(user_id=user_id, file_hash=file_hash, filename=f"{sheet_name}.csv", status="processing")
+            db.add(rec)
+            db.commit()
+            db.refresh(rec)
+
+            process_and_load_csv(temp_path, user_id=user_id, file_id=rec.id)
+            rec.status = "completed"
+        finally:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
             
         notif = AlertNotification(
             user_id=user_id,
@@ -583,7 +605,10 @@ def get_bam_scorecards(
     user_id: int = Depends(get_current_user_id)
 ):
     """Calculates BAM health scorecards, Target vs Actual gauges, and Donut breakdown data."""
-    file_count = db.query(FileRecord).filter(FileRecord.user_id == user_id).count()
+    file_count = db.query(FileRecord).filter(
+        FileRecord.user_id == user_id,
+        FileRecord.status == "completed"
+    ).count()
     connected_count = db.query(IntegrationSetting).filter(
         IntegrationSetting.user_id == user_id,
         IntegrationSetting.is_connected == 1
@@ -634,13 +659,12 @@ def get_bam_scorecards(
             target_status = "behind"
             target_color = "rose"
 
-    # 2. Inventory Health Index
-    categories = db.query(
-        Transaction.category,
-        func.count(Transaction.id).label('sold')
-    ).filter(Transaction.user_id == user_id).group_by(Transaction.category).all()
-    
-    if not categories:
+    # 2. Inventory Health Index (reuse shared inventory service for consistent status)
+    from api.inventory import get_inventory
+    inv_result = get_inventory(db=db, user_id=user_id)
+    inv_items = inv_result.get("inventory", [])
+
+    if not inv_items:
         inv_status = "empty"
         inv_score = 0
         inv_color = "slate"
@@ -648,15 +672,9 @@ def get_bam_scorecards(
         low_stock_count = 0
         out_of_stock_count = 0
     else:
-        low_stock_count = 0
-        out_of_stock_count = 0
-        for cat in categories:
-            remaining = max(0, 500 - cat.sold)
-            if remaining <= 0:
-                out_of_stock_count += 1
-            elif remaining < 50:
-                low_stock_count += 1
-                
+        low_stock_count = sum(1 for item in inv_items if item.get("status") == "Low Stock")
+        out_of_stock_count = sum(1 for item in inv_items if item.get("status") == "Out of Stock")
+
         if out_of_stock_count > 0:
             inv_status = "critical"
             inv_score = 45
