@@ -1218,7 +1218,7 @@ export default function App() {
             
             <div>
               <div className="flex justify-between items-center mb-1">
-                <label className="block text-xs font-semibold text-slate-300">Password</label>
+                <label className="block text-xs font-semibold text-[#7A746B]">Password</label>
                 {authMode === "login" && <a href="#" className="text-xs font-semibold text-[#8A6A34] hover:text-[#5C451C]">Forgot?</a>}
               </div>
               <input type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full p-3 bg-white border border-[#DDD5C9] rounded-xl outline-none focus:ring-2 focus:ring-[#C5A880] focus:border-transparent transition-all text-[#2C2417] text-xs placeholder-[#B7B0A5]" required />
@@ -1236,9 +1236,9 @@ export default function App() {
                     <div className="flex items-center justify-between text-[11px]">
                       <span className="text-[#7A746B] font-medium">Password Strength:</span>
                       <span className={`font-bold ${
-                        score <= 2 ? "text-rose-400" :
-                        score <= 4 ? "text-amber-400" :
-                        "text-emerald-400"
+                        score <= 2 ? "text-rose-600" :
+                        score <= 4 ? "text-[#8A6A34]" :
+                        "text-emerald-700"
                       }`}>
                         {score <= 2 ? "Weak" : score <= 4 ? "Medium" : "Strong"}
                       </span>
@@ -1322,11 +1322,11 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen bg-[#f8fafc] text-slate-900 relative overflow-hidden font-sans">
+    <div className="flex h-screen bg-[#FAF7F2] text-stone-900 relative overflow-hidden font-sans">
       {/* Mobile Top Nav */}
-      <div className="md:hidden absolute top-0 left-0 right-0 h-16 bg-white/95 backdrop-blur-xl border-b border-slate-200/80 flex items-center justify-between px-6 z-30 shadow-sm">
+      <div className="md:hidden absolute top-0 left-0 right-0 h-16 bg-[#0A1628] border-b border-[#15253D] text-white flex items-center justify-between px-6 z-30 shadow-sm">
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center font-bold text-white text-xs shadow-sm">
+          <div className="w-7 h-7 rounded-lg bg-[#111F35] border border-[#233550] flex items-center justify-center font-bold text-[#C5A880] text-xs shadow-sm">
             ⚡
           </div>
           <span className="font-bold text-slate-900 text-sm">BIA Platform</span>
