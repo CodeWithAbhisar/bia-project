@@ -1,6 +1,7 @@
-from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, BackgroundTasks
+from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, BackgroundTasks, Header, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
+from typing import Optional
 import os
 import shutil
 from dotenv import load_dotenv
@@ -8,7 +9,7 @@ import hashlib
 
 load_dotenv()
 
-from models.database import get_db, FileRecord
+from models.database import get_db, FileRecord, ArchivedFile
 from services.etl_service import process_and_load_csv
 from services.analytics_engine import get_overview_data, get_cashflow_data
 
@@ -171,14 +172,21 @@ def update_user_profile(req: dict, user_id: int = Depends(get_current_user_id), 
 @app.delete("/api/user/files/{file_id}")
 def delete_user_file(file_id: int, user_id: int = Depends(get_current_user_id), db: Session = Depends(get_db)):
     from models.database import Transaction, IntegrationSetting
+    from services.archive_service import archive_file_transactions
     file_record = db.query(FileRecord).filter(FileRecord.id == file_id, FileRecord.user_id == user_id).first()
     if not file_record:
         raise HTTPException(status_code=404, detail="File not found")
     
-    # Delete associated transactions
+    # 1. Preserve the file's transaction snapshot in the hidden developer archive
+    try:
+        archive_file_transactions(db, file_record, user_id)
+    except Exception as e:
+        print(f"Archive notice: {e}")
+    
+    # 2. Delete associated transactions
     db.query(Transaction).filter(Transaction.file_id == file_id).delete()
     
-    # Delete the file record
+    # 3. Delete the file record
     db.delete(file_record)
     db.commit()
 
@@ -198,12 +206,39 @@ def delete_user_file(file_id: int, user_id: int = Depends(get_current_user_id), 
 def reset_user_workspace(user_id: int = Depends(get_current_user_id), db: Session = Depends(get_db)):
     """Purges all transactions, file records, and alerts for the user so workspace is a fresh clean slate."""
     from models.database import Transaction, AlertNotification, IntegrationSetting
+    from services.archive_service import archive_all_user_transactions
+    
+    # Preserve everything the user is about to lose into the hidden developer archive
+    try:
+        archive_all_user_transactions(db, user_id, reason="workspace-reset")
+    except Exception as e:
+        print(f"Archive notice: {e}")
+    
     db.query(Transaction).filter(Transaction.user_id == user_id).delete()
     db.query(FileRecord).filter(FileRecord.user_id == user_id).delete()
     db.query(AlertNotification).filter(AlertNotification.user_id == user_id).delete()
     db.query(IntegrationSetting).filter(IntegrationSetting.user_id == user_id).update({"is_connected": 0})
     db.commit()
     return {"status": "Success", "message": "All workspace data and transactions purged."}
+
+# Developer-only: view hidden archive of deleted files / workspace resets.
+# Requires header: X-Developer-Key: <your DEVELOPER_KEY from backend/.env>
+@app.get("/api/developer/archive")
+def developer_view_archive(
+    x_developer_key: str = Header(default="", alias="X-Developer-Key"),
+    user_id: Optional[int] = Query(None, description="Filter by user id"),
+    db: Session = Depends(get_db),
+):
+    from services.archive_service import is_developer_authorized, archive_to_dict
+
+    if not is_developer_authorized(x_developer_key):
+        raise HTTPException(status_code=403, detail="Developer key required")
+
+    query = db.query(ArchivedFile)
+    if user_id is not None:
+        query = query.filter(ArchivedFile.user_id == user_id)
+    records = query.order_by(ArchivedFile.deleted_at.desc()).all()
+    return {"count": len(records), "archives": [archive_to_dict(r) for r in records]}
 
 # 3. Lock the data routes
 @app.get("/api/analytics/overview")

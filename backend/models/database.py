@@ -92,6 +92,20 @@ class IntegrationSetting(Base):
     config = Column(JSON, nullable=True) # {"store_domain": "...", "api_key": "...", ...}
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
+class ArchivedFile(Base):
+    """Developer-only hidden archive. When a user deletes a file (or resets the
+    workspace), the file's transaction payload is preserved here so the developer
+    can inspect it later. Users never see this table or anything from it."""
+    __tablename__ = "archived_files"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, index=True)
+    original_file_id = Column(Integer, nullable=True, index=True)
+    filename = Column(String)
+    file_hash = Column(String, nullable=True, index=True)
+    transaction_count = Column(Integer, default=0)
+    transactions_payload = Column(JSON, nullable=True)  # full snapshot of rows
+    deleted_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
 Base.metadata.create_all(bind=engine)
 
 # Lightweight auto-migration: add created_at, full_name, company columns if missing
