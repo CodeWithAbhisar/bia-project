@@ -65,6 +65,7 @@ class FileRecord(Base):
     filename = Column(String)
     status = Column(String, default="completed")
     error_message = Column(String, nullable=True)
+    rows_loaded = Column(Integer, default=0)
 
 class EmailOTP(Base):
     __tablename__ = "email_otps"
@@ -123,11 +124,14 @@ try:
             file_cols = [r[1] for r in conn.exec_driver_sql("PRAGMA table_info(file_records)").fetchall()]
             if "error_message" not in file_cols:
                 conn.exec_driver_sql("ALTER TABLE file_records ADD COLUMN error_message TEXT")
+            if "rows_loaded" not in file_cols:
+                conn.exec_driver_sql("ALTER TABLE file_records ADD COLUMN rows_loaded INTEGER DEFAULT 0")
         else:
             conn.exec_driver_sql("ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW()")
             conn.exec_driver_sql("ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name VARCHAR")
             conn.exec_driver_sql("ALTER TABLE users ADD COLUMN IF NOT EXISTS company VARCHAR")
             conn.exec_driver_sql("ALTER TABLE file_records ADD COLUMN IF NOT EXISTS error_message VARCHAR")
+            conn.exec_driver_sql("ALTER TABLE file_records ADD COLUMN IF NOT EXISTS rows_loaded INTEGER DEFAULT 0")
 except Exception as e:
     print(f"Auto-migration notice: {e}")
 

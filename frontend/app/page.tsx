@@ -111,6 +111,7 @@ export default function App() {
 
   // Tracking uploaded files and errors
   const [uploadError, setUploadError] = useState("");
+  const [uploadProgress, setUploadProgress] = useState<{ pct: number; label: string } | null>(null);
   const [authError, setAuthError] = useState("");
   
   const handleGoogleSuccess = async (response: any) => {
@@ -171,7 +172,7 @@ export default function App() {
     created_at?: string;
     transaction_count?: number;
     connected_integrations?: number;
-    files: Array<{ id: number; filename: string; status: string; error_message?: string | null }>;
+    files: Array<{ id: number; filename: string; status: string; error_message?: string | null; rows_loaded?: number }>;
   } | null>(null);
   const [editingProfile, setEditingProfile] = useState(false);
   const [editFullName, setEditFullName] = useState("");
@@ -692,21 +693,67 @@ export default function App() {
     if (!file) return;
     setLoading(true);
     setUploadError("");
-    const formData = new FormData();
-    formData.append("file", file);
+    setUploadProgress({ pct: 2, label: `Preparing ${file.name}...` });
+    const config = { headers: { Authorization: `Bearer ${token}` } };
+    const CHUNK_SIZE = 1536 * 1024; // 1.5 MB chunks stay well under Vercel's 4.5 MB proxy cap
+
     try {
-      const config = { headers: { Authorization: `Bearer ${token}` } };
-      const uploadRes = await axios.post(API_BASE + "/api/upload", formData, config);
-      const uploadedFileId = uploadRes.data?.file_id;
-      
+      let uploadedFileId: number | undefined;
+
+      if (file.size <= CHUNK_SIZE) {
+        setUploadProgress({ pct: 40, label: "Uploading dataset..." });
+        const formData = new FormData();
+        formData.append("file", file);
+        const uploadRes = await axios.post(API_BASE + "/api/upload", formData, config);
+        uploadedFileId = uploadRes.data?.file_id;
+      } else {
+        const initRes = await axios.post(
+          API_BASE + "/api/upload/init",
+          { filename: file.name, total_size: file.size },
+          config
+        );
+        const uploadId = initRes.data.upload_id;
+        const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+
+        for (let idx = 0; idx < totalChunks; idx++) {
+          const start = idx * CHUNK_SIZE;
+          const end = Math.min(file.size, start + CHUNK_SIZE);
+          const blob = file.slice(start, end);
+          const chunkForm = new FormData();
+          chunkForm.append("upload_id", uploadId);
+          chunkForm.append("chunk_index", String(idx));
+          chunkForm.append("chunk", blob, `${file.name}.part${idx}`);
+
+          await axios.post(API_BASE + "/api/upload/chunk", chunkForm, config);
+          const pct = Math.min(95, Math.round(((idx + 1) / totalChunks) * 90));
+          setUploadProgress({
+            pct,
+            label: `Uploading chunk ${idx + 1} of ${totalChunks} (${pct}%)...`,
+          });
+        }
+
+        setUploadProgress({ pct: 95, label: "Finalizing file for ETL pipeline..." });
+        const completeRes = await axios.post(
+          API_BASE + "/api/upload/complete",
+          { upload_id: uploadId, filename: file.name },
+          config
+        );
+        uploadedFileId = completeRes.data?.file_id;
+      }
+
+      setUploadProgress({ pct: 98, label: "Running streaming ETL pipeline..." });
+
       // Reset upload inputs immediately
       setFile(null);
       const fileInput = document.getElementById('dataset-upload') as HTMLInputElement;
       if (fileInput) fileInput.value = "";
-      setChatLog([]); 
+      setChatLog([]);
 
-      // Poll specifically for this uploaded file until processing completes (max 3 mins)
+      // Poll specifically for this uploaded file while rows continue loading (up to 15 mins max)
       let pollCount = 0;
+      let lastRowsLoaded = -1;
+      let stagnantPolls = 0;
+
       const pollInterval = setInterval(async () => {
         pollCount += 1;
         try {
@@ -720,20 +767,38 @@ export default function App() {
           const stillProcessing = targetFile
             ? targetFile.status === "processing"
             : res.data.files?.some((f: any) => f.status === "processing");
-          
-          if (!stillProcessing || pollCount >= 90) {
+
+          const currentRows = Number(targetFile?.rows_loaded || 0);
+          if (stillProcessing) {
+            if (currentRows > lastRowsLoaded) {
+              lastRowsLoaded = currentRows;
+              stagnantPolls = 0;
+            } else {
+              stagnantPolls += 1;
+            }
+            setUploadProgress({
+              pct: 99,
+              label: currentRows > 0
+                ? `Ingesting records... ${currentRows.toLocaleString()} rows loaded`
+                : "Analyzing schema and preparing ETL stream...",
+            });
+          }
+
+          if (!stillProcessing || pollCount >= 450 || stagnantPolls >= 90) {
             clearInterval(pollInterval);
             setLoading(false);
-            
+            setUploadProgress(null);
+
             if (targetFile?.status === "failed") {
               const reason = targetFile.error_message || "Data Processing Failed. Check file format.";
               setUploadError(reason);
               setStreamToast({ message: `❌ ${reason}`, type: "warning" });
               setTimeout(() => setStreamToast(null), 6000);
             } else if (stillProcessing) {
-              setUploadError("Processing is taking longer than expected. Check Account & Files shortly.");
+              setUploadError("Large file ingestion is continuing in the background. Check Account & Files for live progress.");
             } else {
-              setStreamToast({ message: "✅ Dataset processed successfully! Dashboard updated.", type: "success" });
+              const rowsMsg = currentRows > 0 ? ` (${currentRows.toLocaleString()} rows)` : "";
+              setStreamToast({ message: `✅ Dataset processed successfully${rowsMsg}! Dashboard updated.`, type: "success" });
               setTimeout(() => setStreamToast(null), 4000);
               fetchAllData();
               setActiveTab("dashboard");
@@ -742,11 +807,12 @@ export default function App() {
         } catch {
           clearInterval(pollInterval);
           setLoading(false);
+          setUploadProgress(null);
         }
       }, 2000);
-      
     } catch (e: any) {
       setLoading(false);
+      setUploadProgress(null);
       if (e.response && e.response.data && e.response.data.detail) {
         setUploadError(e.response.data.detail);
       } else {
@@ -1774,6 +1840,21 @@ export default function App() {
                 <div className="mt-6 p-4 bg-rose-50 text-rose-700 text-sm font-medium rounded-xl flex items-start gap-3 w-full text-left animate-in slide-in-from-top-2 border border-rose-200">
                   <AlertTriangle size={18} className="shrink-0 mt-0.5" />
                   <p className="leading-relaxed">{uploadError}</p>
+                </div>
+              )}
+
+              {loading && uploadProgress && (
+                <div className="mt-6 w-full text-left bg-[#FAF7F2] border border-[#DDD5C9] rounded-xl p-4">
+                  <div className="flex items-center justify-between text-xs font-bold text-[#111827] mb-2">
+                    <span className="truncate pr-2">{uploadProgress.label}</span>
+                    <span className="text-[#8A6A34] shrink-0">{uploadProgress.pct}%</span>
+                  </div>
+                  <div className="w-full bg-[#EAE3D6] rounded-full h-2 overflow-hidden">
+                    <div
+                      className="bg-[#0A1628] h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${uploadProgress.pct}%` }}
+                    ></div>
+                  </div>
                 </div>
               )}
 
@@ -3338,7 +3419,7 @@ export default function App() {
                             }`}>
                               {file.status === "processing" ? (
                                 <>
-                                  <RefreshCw size={11} className="animate-spin" /> Processing in background...
+                                  <RefreshCw size={11} className="animate-spin" /> {file.rows_loaded ? `Processing (${file.rows_loaded.toLocaleString()} rows loaded)...` : "Processing in background..."}
                                 </>
                               ) : file.status === "failed" ? (
                                 <>
@@ -3346,7 +3427,7 @@ export default function App() {
                                 </>
                               ) : (
                                 <>
-                                  <CheckCircle2 size={11} /> Data Ready & Synced
+                                  <CheckCircle2 size={11} /> {file.rows_loaded ? `Data Ready & Synced (${file.rows_loaded.toLocaleString()} rows)` : "Data Ready & Synced"}
                                 </>
                               )}
                             </span>

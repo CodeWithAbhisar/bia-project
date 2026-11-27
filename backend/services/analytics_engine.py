@@ -182,10 +182,15 @@ def get_cashflow_data(db: Session, user_id: int):
     has_cost = False
     has_net = False
 
-    # Safely sum normalized cost / net_profit from raw_data without risky SQL JSON float casts
+    # Stream normalized cost / net_profit in O(1) memory even for 500k+ row datasets
     try:
-        tx_rows = db.query(Transaction.amount, Transaction.raw_data).filter(Transaction.user_id == user_id).all()
-        for tx_amt, raw_json in tx_rows:
+        tx_rows = (
+            db.query(Transaction.raw_data)
+            .filter(Transaction.user_id == user_id)
+            .execution_options(stream_results=True)
+            .yield_per(2000)
+        )
+        for (raw_json,) in tx_rows:
             if not isinstance(raw_json, dict):
                 continue
             if raw_json.get("cost") is not None:

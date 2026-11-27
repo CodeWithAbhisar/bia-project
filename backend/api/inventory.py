@@ -42,9 +42,6 @@ def get_inventory(db: Session = Depends(get_db), user_id: int = Depends(get_curr
         total_units_sold = 0
         total_inventory_items = 0
 
-        # Extract raw data to check for real inventory metrics
-        raw_txs = db.query(Transaction.category, Transaction.date, Transaction.raw_data).filter(Transaction.user_id == user_id).order_by(Transaction.date).all()
-
         category_stats = {}
         for row in sales_by_category:
             category_stats[row.category] = {
@@ -57,24 +54,36 @@ def get_inventory(db: Session = Depends(get_db), user_id: int = Depends(get_curr
                 'latest_date': None
             }
 
-        for cat, tx_date, raw_json in raw_txs:
-            if isinstance(raw_json, dict) and cat in category_stats:
-                if raw_json.get('sold') is not None:
-                    try:
-                        sold_qty = int(float(raw_json['sold']))
-                        category_stats[cat]['has_real_sold'] = True
-                        category_stats[cat]['real_sold'] += max(0, sold_qty)
-                    except (ValueError, TypeError):
-                        pass
-                if raw_json.get('remaining') is not None:
-                    try:
-                        rem_qty = int(float(raw_json['remaining']))
-                        category_stats[cat]['has_real_remaining'] = True
-                        if category_stats[cat]['latest_date'] is None or str(tx_date) >= str(category_stats[cat]['latest_date']):
-                            category_stats[cat]['real_remaining'] = max(0, rem_qty)
-                            category_stats[cat]['latest_date'] = tx_date
-                    except (ValueError, TypeError):
-                        pass
+        # Probe 1 row first: skip scanning raw_data across massive datasets if neither 'sold' nor 'remaining' exists
+        first_tx = db.query(Transaction.raw_data).filter(Transaction.user_id == user_id).first()
+        first_raw = first_tx[0] if first_tx and isinstance(first_tx[0], dict) else {}
+        needs_raw_scan = ("sold" in first_raw) or ("remaining" in first_raw)
+
+        if needs_raw_scan:
+            raw_txs = (
+                db.query(Transaction.category, Transaction.date, Transaction.raw_data)
+                .filter(Transaction.user_id == user_id)
+                .execution_options(stream_results=True)
+                .yield_per(2000)
+            )
+            for cat, tx_date, raw_json in raw_txs:
+                if isinstance(raw_json, dict) and cat in category_stats:
+                    if raw_json.get('sold') is not None:
+                        try:
+                            sold_qty = int(float(raw_json['sold']))
+                            category_stats[cat]['has_real_sold'] = True
+                            category_stats[cat]['real_sold'] += max(0, sold_qty)
+                        except (ValueError, TypeError):
+                            pass
+                    if raw_json.get('remaining') is not None:
+                        try:
+                            rem_qty = int(float(raw_json['remaining']))
+                            category_stats[cat]['has_real_remaining'] = True
+                            if category_stats[cat]['latest_date'] is None or str(tx_date) >= str(category_stats[cat]['latest_date']):
+                                category_stats[cat]['real_remaining'] = max(0, rem_qty)
+                                category_stats[cat]['latest_date'] = tx_date
+                        except (ValueError, TypeError):
+                            pass
 
         for row in sales_by_category:
             cat = row.category

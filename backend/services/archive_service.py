@@ -16,25 +16,34 @@ from models.database import ArchivedFile, Transaction
 DEVELOPER_KEY = os.getenv("DEVELOPER_KEY", "")
 
 
+MAX_ARCHIVE_ROWS = 20000
+
+
+def _stream_snapshot(query):
+    total_count = 0
+    payload = []
+    for tx in query.execution_options(stream_results=True).yield_per(2000):
+        total_count += 1
+        if len(payload) < MAX_ARCHIVE_ROWS:
+            payload.append({
+                "date": tx.date,
+                "amount": tx.amount,
+                "category": tx.category,
+                "product_sku": tx.product_sku,
+                "customer_id": tx.customer_id,
+                "raw_data": tx.raw_data,
+            })
+    return total_count, payload
+
+
 def archive_file_transactions(db: Session, file_record, user_id: int):
-    """Snapshot all transactions belonging to a deleted file into the archive."""
-    rows = db.query(Transaction).filter(
+    """Snapshot transactions belonging to a deleted file in constant memory."""
+    q = db.query(Transaction).filter(
         Transaction.file_id == file_record.id,
         Transaction.user_id == user_id,
-    ).all()
-
-    payload = []
-    for tx in rows:
-        payload.append({
-            "date": tx.date,
-            "amount": tx.amount,
-            "category": tx.category,
-            "product_sku": tx.product_sku,
-            "customer_id": tx.customer_id,
-            "raw_data": tx.raw_data,
-        })
-
-    if not payload:
+    )
+    total_count, payload = _stream_snapshot(q)
+    if total_count == 0:
         return
 
     db.add(ArchivedFile(
@@ -42,28 +51,17 @@ def archive_file_transactions(db: Session, file_record, user_id: int):
         original_file_id=file_record.id,
         filename=file_record.filename,
         file_hash=file_record.file_hash,
-        transaction_count=len(payload),
+        transaction_count=total_count,
         transactions_payload=payload,
         deleted_at=datetime.now(timezone.utc),
     ))
 
 
 def archive_all_user_transactions(db: Session, user_id: int, reason: str = "workspace-reset"):
-    """Snapshot every remaining transaction for the user (workspace reset case)."""
-    rows = db.query(Transaction).filter(Transaction.user_id == user_id).all()
-
-    payload = []
-    for tx in rows:
-        payload.append({
-            "date": tx.date,
-            "amount": tx.amount,
-            "category": tx.category,
-            "product_sku": tx.product_sku,
-            "customer_id": tx.customer_id,
-            "raw_data": tx.raw_data,
-        })
-
-    if not payload:
+    """Snapshot user transactions in constant memory on workspace reset."""
+    q = db.query(Transaction).filter(Transaction.user_id == user_id)
+    total_count, payload = _stream_snapshot(q)
+    if total_count == 0:
         return
 
     db.add(ArchivedFile(
@@ -71,7 +69,7 @@ def archive_all_user_transactions(db: Session, user_id: int, reason: str = "work
         original_file_id=None,
         filename=reason,
         file_hash=None,
-        transaction_count=len(payload),
+        transaction_count=total_count,
         transactions_payload=payload,
         deleted_at=datetime.now(timezone.utc),
     ))

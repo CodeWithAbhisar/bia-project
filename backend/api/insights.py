@@ -36,13 +36,13 @@ def get_insights(db: Session = Depends(get_db), user_id: int = Depends(get_curre
             Transaction.product_sku,
             func.sum(Transaction.amount).label('prod_revenue'),
             func.count(Transaction.id).label('prod_sold')
-        ).filter(Transaction.user_id == user_id).group_by(Transaction.product_sku).order_by(func.sum(Transaction.amount).desc()).all()
+        ).filter(Transaction.user_id == user_id).group_by(Transaction.product_sku).order_by(func.sum(Transaction.amount).desc()).limit(1).all()
         
         customer_sales = db.query(
             Transaction.customer_id,
             func.sum(Transaction.amount).label('cust_revenue'),
             func.count(Transaction.id).label('cust_orders')
-        ).filter(Transaction.user_id == user_id).group_by(Transaction.customer_id).order_by(func.sum(Transaction.amount).desc()).all()
+        ).filter(Transaction.user_id == user_id).group_by(Transaction.customer_id).order_by(func.sum(Transaction.amount).desc()).limit(1).all()
         
         if not daily_sales:
             return {"insights": [{"title": "No Data", "description": "Upload data to see insights.", "type": "info"}]}
@@ -81,7 +81,7 @@ def get_insights(db: Session = Depends(get_db), user_id: int = Depends(get_curre
         if customer_sales:
             vip = customer_sales[0]
             if vip.customer_id and str(vip.customer_id) != '1':
-                total_rev = sum(c.cust_revenue for c in customer_sales)
+                total_rev = sum(c.cat_revenue for c in cat_sales) if cat_sales else 0.0
                 pct = (vip.cust_revenue / total_rev) * 100 if total_rev > 0 else 0
                 insights.append({
                     "title": "VIP Customer Detected",

@@ -1,88 +1,107 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from typing import List, Optional
 
-from models.database import get_db, Transaction
+from models.database import get_db, Transaction, FileRecord, IntegrationSetting, User
 from api.auth import get_current_user_id
-from services.sarvam_client import generate_response, generate_response_stream
+from services.sarvam_client import generate_response_stream
 
 router = APIRouter()
+
 
 class ChatMessage(BaseModel):
     role: str
     text: str
 
+
 class ChatRequest(BaseModel):
     message: str
     history: Optional[List[ChatMessage]] = []
 
+
 @router.post("/api/chat")
 def chat_with_assistant(
-    request: ChatRequest, 
-    db: Session = Depends(get_db), 
-    user_id: int = Depends(get_current_user_id)
+    request: ChatRequest,
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
 ):
     try:
-        transactions = db.query(Transaction).filter(Transaction.user_id == user_id).all()
-        
-        if not transactions:
+        file_count = db.query(FileRecord).filter(
+            FileRecord.user_id == user_id,
+            FileRecord.status == "completed",
+        ).count()
+        connected_count = db.query(IntegrationSetting).filter(
+            IntegrationSetting.user_id == user_id,
+            IntegrationSetting.is_connected == 1,
+        ).count()
+
+        total_rows = 0
+        if file_count > 0 or connected_count > 0:
+            total_rows = db.query(func.count(Transaction.id)).filter(Transaction.user_id == user_id).scalar() or 0
+
+        if total_rows == 0:
             data_context = "No transaction data has been uploaded yet."
         else:
-            total_rev = sum(t.amount for t in transactions if t.amount is not None)
-            total_rows = len(transactions)
-            
-            categories = {}
-            for t in transactions:
-                cat = t.category or "Uncategorized"
-                categories[cat] = categories.get(cat, 0) + (t.amount or 0.0)
-                
-            cat_summary = ", ".join([f"{k}: ${round(v, 2)}" for k, v in categories.items()])
+            cat_rows = (
+                db.query(Transaction.category, func.sum(Transaction.amount).label("cat_rev"))
+                .filter(Transaction.user_id == user_id)
+                .group_by(Transaction.category)
+                .all()
+            )
+            cat_summary = ", ".join([
+                f"{row.category or 'Uncategorized'}: ${round(float(row.cat_rev or 0.0), 2)}"
+                for row in cat_rows
+            ])
 
-            # --- NEW: Extract and aggregate the raw JSON data! ---
+            # Probe first row schema without loading all ORM rows into RAM
+            first_tx = db.query(Transaction.raw_data).filter(Transaction.user_id == user_id).first()
+            original_columns = list(first_tx[0].keys()) if first_tx and isinstance(first_tx[0], dict) else []
+
+            # Stream raw_data metrics in constant O(1) memory even for 500k+ row datasets
             raw_metrics = {}
-            original_columns = []
-            
-            # Check if there is raw data saved
-            if transactions and transactions[0].raw_data:
-                original_columns = list(transactions[0].raw_data.keys())
-                
-                # Loop through every row and add up any numeric columns it finds
-                for t in transactions:
-                    if t.raw_data:
-                        for key, value in t.raw_data.items():
-                            if isinstance(value, (int, float)):
-                                raw_metrics[key] = raw_metrics.get(key, 0) + value
+            raw_stream = (
+                db.query(Transaction.raw_data)
+                .filter(Transaction.user_id == user_id)
+                .execution_options(stream_results=True)
+                .yield_per(2000)
+            )
+            for (raw_json,) in raw_stream:
+                if isinstance(raw_json, dict):
+                    for key, value in raw_json.items():
+                        if isinstance(value, (int, float)) and not isinstance(value, bool):
+                            raw_metrics[key] = raw_metrics.get(key, 0.0) + float(value)
 
             raw_summary = ", ".join([f"Total {k}: {round(v, 2)}" for k, v in raw_metrics.items()])
-            # -----------------------------------------------------
+
             from api.inventory import get_inventory
             from services.analytics_engine import get_overview_data, get_cashflow_data
             from api.insights import get_insights
 
-            # 1. Inventory Data
             inv_data = get_inventory(db, user_id)
-            inv_summary = ", ".join([f"{item['category']} ({item['status']}): {item['remaining']} left, {item['sold']} sold" for item in inv_data.get('inventory', [])])
-            inv_metrics = inv_data.get('metrics', {})
+            inv_summary = ", ".join([
+                f"{item['category']} ({item['status']}): {item['remaining']} left, {item['sold']} sold"
+                for item in inv_data.get("inventory", [])
+            ])
+            inv_metrics = inv_data.get("metrics", {})
 
-            # 2. Overview KPIs
             overview_data = get_overview_data(db, user_id)
-            kpis = overview_data.get('kpis', {})
+            kpis = overview_data.get("kpis", {})
 
-            # 3. Cashflow and Financial Metrics
             cashflow_data = get_cashflow_data(db, user_id)
-            fin_metrics = cashflow_data.get('financial_metrics', {})
+            fin_metrics = cashflow_data.get("financial_metrics", {})
 
-            # 4. Automated Insights
             insights_data = get_insights(db, user_id)
-            insights_summary = "\n  * ".join([f"{i['title']}: {i['description']}" for i in insights_data.get('insights', [])])
-            if insights_summary: insights_summary = "\n  * " + insights_summary
+            insights_summary = "\n  * ".join([
+                f"{i['title']}: {i['description']}"
+                for i in insights_data.get("insights", [])
+            ])
+            if insights_summary:
+                insights_summary = "\n  * " + insights_summary
 
-            # Fetch User Profile Details
-            from models.database import User
             user_profile = db.query(User).filter(User.id == user_id).first()
-            user_display = "the user"
             if user_profile:
                 if user_profile.full_name and user_profile.company:
                     user_display = f"{user_profile.full_name} from {user_profile.company}"
@@ -90,6 +109,8 @@ def chat_with_assistant(
                     user_display = user_profile.full_name
                 else:
                     user_display = f"User {user_id}"
+            else:
+                user_display = "the user"
 
             data_context = (
                 f"Current Dataset Summary for {user_display}:\n"
@@ -115,7 +136,6 @@ def chat_with_assistant(
                 f"[AUTOMATED INSIGHTS]{insights_summary}\n"
             )
 
-        # Retrieve Unstructured Documents from Vector DB
         try:
             from services.vector_service import search_documents
             doc_context = search_documents(request.message, user_id)

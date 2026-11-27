@@ -1,9 +1,11 @@
-from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, BackgroundTasks, Header, Query
+from fastapi import FastAPI, UploadFile, File, Form, Depends, HTTPException, BackgroundTasks, Header, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import Optional
 import os
+import re
 import shutil
+import time
 from dotenv import load_dotenv
 import hashlib
 
@@ -45,7 +47,7 @@ def background_process_file(file_location: str, user_id: int, file_id: int, file
             process_and_load_csv(file_location, user_id=user_id, file_id=file_id)
         elif lower_name.endswith(('.pdf', '.txt')):
             from services.vector_service import process_document
-            process_document(file_location, user_id=user_id)
+            process_document(file_location, user_id=user_id, file_id=file_id)
         else:
             raise ValueError("Unsupported file type. Please upload .csv, .pdf, or .txt.")
         
@@ -77,57 +79,128 @@ def background_process_file(file_location: str, user_id: int, file_id: int, file
                 pass
         db.close()
 
+
+def _cleanup_stale_part_files():
+    """Removes abandoned chunked upload staging files older than 2 hours."""
+    now = time.time()
+    try:
+        for entry in os.listdir("."):
+            if entry.startswith("temp_upload_") and entry.endswith(".part"):
+                if now - os.path.getmtime(entry) > 7200:
+                    os.remove(entry)
+    except Exception:
+        pass
+
+
+def _enqueue_uploaded_file(file_location: str, filename: str, user_id: int, background_tasks: BackgroundTasks, db: Session):
+    if not os.path.exists(file_location) or os.path.getsize(file_location) == 0:
+        if os.path.exists(file_location):
+            os.remove(file_location)
+        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+
+    sha256_hash = hashlib.sha256()
+    with open(file_location, "rb") as f:
+        for byte_block in iter(lambda: f.read(65536), b""):
+            sha256_hash.update(byte_block)
+    file_hash = sha256_hash.hexdigest()
+
+    existing_file = db.query(FileRecord).filter(
+        FileRecord.user_id == user_id,
+        FileRecord.file_hash == file_hash,
+        FileRecord.status != "failed",
+    ).first()
+
+    if existing_file:
+        os.remove(file_location)
+        raise HTTPException(status_code=400, detail="This exact file has already been uploaded.")
+
+    db.query(FileRecord).filter(
+        FileRecord.user_id == user_id,
+        FileRecord.file_hash == file_hash,
+        FileRecord.status == "failed",
+    ).delete()
+
+    new_record = FileRecord(user_id=user_id, file_hash=file_hash, filename=filename, status="processing", rows_loaded=0)
+    db.add(new_record)
+    db.commit()
+    db.refresh(new_record)
+
+    background_tasks.add_task(background_process_file, file_location, user_id, new_record.id, filename)
+    return {"status": "Processing", "message": "File is successfully queued in the background.", "file_id": new_record.id}
+
+
+@app.post("/api/upload/init")
+def init_chunked_upload(req: dict, user_id: int = Depends(get_current_user_id)):
+    _cleanup_stale_part_files()
+    filename = str(req.get("filename") or "").strip()
+    total_size = int(req.get("total_size") or 0)
+    if not filename or not filename.lower().endswith(('.csv', '.pdf', '.txt')):
+        raise HTTPException(status_code=400, detail="Unsupported file format. Please upload a .csv, .pdf, or .txt file.")
+    if total_size <= 0:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+
+    upload_id = uuid.uuid4().hex
+    part_path = f"temp_upload_{user_id}_{upload_id}.part"
+    with open(part_path, "wb"):
+        pass
+    return {"upload_id": upload_id}
+
+
+@app.post("/api/upload/chunk")
+def upload_file_chunk(
+    upload_id: str = Form(...),
+    chunk_index: int = Form(...),
+    chunk: UploadFile = File(...),
+    user_id: int = Depends(get_current_user_id),
+):
+    if not re.fullmatch(r"[a-fA-F0-9]{16,64}", upload_id):
+        raise HTTPException(status_code=400, detail="Invalid upload session.")
+    part_path = f"temp_upload_{user_id}_{upload_id}.part"
+    if not os.path.exists(part_path):
+        raise HTTPException(status_code=404, detail="Upload session expired or not found.")
+
+    with open(part_path, "ab") as dest:
+        shutil.copyfileobj(chunk.file, dest, length=65536)
+
+    return {"status": "received", "chunk_index": chunk_index}
+
+
+@app.post("/api/upload/complete")
+def complete_chunked_upload(
+    req: dict,
+    background_tasks: BackgroundTasks = BackgroundTasks(),
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
+    upload_id = str(req.get("upload_id") or "")
+    filename = str(req.get("filename") or "dataset.csv").strip()
+    if not re.fullmatch(r"[a-fA-F0-9]{16,64}", upload_id):
+        raise HTTPException(status_code=400, detail="Invalid upload session.")
+    if not filename.lower().endswith(('.csv', '.pdf', '.txt')):
+        raise HTTPException(status_code=400, detail="Unsupported file format.")
+
+    part_path = f"temp_upload_{user_id}_{upload_id}.part"
+    if not os.path.exists(part_path):
+        raise HTTPException(status_code=404, detail="Assembled upload file not found.")
+
+    safe_filename = "".join(c for c in filename if c.isalnum() or c in "._-")
+    final_path = f"temp_{uuid.uuid4().hex}_{safe_filename}"
+    os.replace(part_path, final_path)
+    return _enqueue_uploaded_file(final_path, filename, user_id, background_tasks, db)
+
+
 @app.post("/api/upload")
 def upload_data(file: UploadFile = File(...), background_tasks: BackgroundTasks = BackgroundTasks(), user_id: int = Depends(get_current_user_id), db: Session = Depends(get_db)):
     filename = file.filename or "dataset.csv"
     if not filename.lower().endswith(('.csv', '.pdf', '.txt')):
         raise HTTPException(status_code=400, detail="Unsupported file format. Please upload a .csv, .pdf, or .txt file.")
 
-    # Generate unique and safe filename to prevent traversal and race conditions
     safe_filename = "".join(c for c in filename if c.isalnum() or c in "._-")
     file_location = f"temp_{uuid.uuid4().hex}_{safe_filename}"
     with open(file_location, "wb+") as file_object:
-        shutil.copyfileobj(file.file, file_object)
+        shutil.copyfileobj(file.file, file_object, length=65536)
 
-    if os.path.getsize(file_location) == 0:
-        os.remove(file_location)
-        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
-    
-    # Calculate file hash to prevent duplicates
-    sha256_hash = hashlib.sha256()
-    with open(file_location, "rb") as f:
-        for byte_block in iter(lambda: f.read(4096), b""):
-            sha256_hash.update(byte_block)
-    file_hash = sha256_hash.hexdigest()
-    
-    # Check if this exact file was already successfully uploaded by this user
-    existing_file = db.query(FileRecord).filter(
-        FileRecord.user_id == user_id, 
-        FileRecord.file_hash == file_hash,
-        FileRecord.status != "failed"
-    ).first()
-    
-    if existing_file:
-        os.remove(file_location)
-        raise HTTPException(status_code=400, detail="This exact file has already been uploaded.")
-
-    # Clean up any stale failed record with the same hash/filename so retries start fresh
-    db.query(FileRecord).filter(
-        FileRecord.user_id == user_id,
-        FileRecord.file_hash == file_hash,
-        FileRecord.status == "failed"
-    ).delete()
-    
-    # Save the record in "processing" state
-    new_record = FileRecord(user_id=user_id, file_hash=file_hash, filename=filename, status="processing")
-    db.add(new_record)
-    db.commit()
-    db.refresh(new_record)
-    
-    # Queue the background processing!
-    background_tasks.add_task(background_process_file, file_location, user_id, new_record.id, filename)
-    
-    return {"status": "Processing", "message": "File is successfully queued in the background.", "file_id": new_record.id}
+    return _enqueue_uploaded_file(file_location, filename, user_id, background_tasks, db)
 
 @app.get("/api/user/profile")
 def get_user_profile(user_id: int = Depends(get_current_user_id), db: Session = Depends(get_db)):
@@ -179,7 +252,8 @@ def get_user_profile(user_id: int = Depends(get_current_user_id), db: Session = 
                     "id": f.id,
                     "filename": f.filename,
                     "status": f.status,
-                    "error_message": getattr(f, "error_message", None)
+                    "error_message": getattr(f, "error_message", None),
+                    "rows_loaded": getattr(f, "rows_loaded", 0) or 0,
                 }
                 for f in files
             ]

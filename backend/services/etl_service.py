@@ -4,10 +4,11 @@ import re
 from datetime import date, datetime
 import numpy as np
 import pandas as pd
-from models.database import SessionLocal, Transaction
+from models.database import FileRecord, SessionLocal, Transaction
 from services.sarvam_client import generate_response
 
 TARGET_FIELDS = ("date", "amount", "category", "product_sku", "customer_id", "quantity", "remaining")
+CSV_CHUNK_SIZE = 2000
 
 
 def clean_json_response(raw_text: str) -> dict:
@@ -98,7 +99,8 @@ def fallback_heuristic_mapping(columns: list) -> dict:
     elif len(top_amount_cols) == 1:
         mapping["amount"] = top_amount_cols[0]
     # If >= 2 non-exact amount columns tie (wide pivot like Jan_Sales/Feb_Sales/Mar_Sales),
-    # leave mapping["amount"] = None so dynamic unpivot (pd.melt) aggregates all periods!
+    # leave mapping["amount"] = None so dynamic unpivot (pd.melt) aggregates all periods.
+
     if not mapping["amount"]:
         # Allow unit price fallback only if there is no quantity column to multiply with,
         # otherwise process_and_load_csv computes revenue = quantity * unit_price.
@@ -221,7 +223,12 @@ def sanitize_json_value(val):
     if val is None:
         return None
     if isinstance(val, dict):
-        return {str(k): sanitize_json_value(v) for k, v in val.items()}
+        sanitized = {}
+        for k, v in val.items():
+            clean_v = sanitize_json_value(v)
+            if clean_v is not None:
+                sanitized[str(k)] = clean_v
+        return sanitized
     if isinstance(val, (list, tuple)):
         return [sanitize_json_value(v) for v in val]
     if isinstance(val, (bool, np.bool_)):
@@ -265,14 +272,11 @@ def parse_numeric(val, default: float = 0.0) -> float:
         return default
 
 
-def normalize_date_series(series: pd.Series, default_date: str) -> list[str]:
-    """Normalizes mixed/US/EU date columns to consistent ISO YYYY-MM-DD strings."""
+def detect_dayfirst(series: pd.Series) -> bool:
+    """Detects DD/MM vs MM/DD convention once from sample rows for consistent chunk parsing."""
     non_null = series.dropna().astype(str).str.strip()
     if non_null.empty:
-        return [default_date] * len(series)
-
-    # Detect whether slash dates are predominantly MM/DD/YYYY (US) vs DD/MM/YYYY (EU)
-    dayfirst = False
+        return False
     slash_samples = non_null[non_null.str.contains(r"^\d{1,2}/\d{1,2}/\d{2,4}", regex=True)].head(100)
     if not slash_samples.empty:
         parts = slash_samples.str.extract(r"^(\d{1,2})/(\d{1,2})/(\d{2,4})").dropna()
@@ -281,38 +285,42 @@ def normalize_date_series(series: pd.Series, default_date: str) -> list[str]:
             second_vals = pd.to_numeric(parts[1], errors="coerce").dropna()
             has_first_gt_12 = bool((first_vals > 12).any())
             has_second_gt_12 = bool((second_vals > 12).any())
-            if has_first_gt_12 and not has_second_gt_12:
-                dayfirst = True
-            else:
-                dayfirst = False
-    else:
-        dot_samples = non_null[non_null.str.contains(r"^\d{1,2}[.\-]\d{1,2}[.\-]\d{4}", regex=True)].head(50)
-        if not dot_samples.empty:
-            dayfirst = True
+            return has_first_gt_12 and not has_second_gt_12
+    dot_samples = non_null[non_null.str.contains(r"^\d{1,2}[.\-]\d{1,2}[.\-]\d{4}", regex=True)].head(50)
+    return not dot_samples.empty
 
+
+def normalize_date_series(series: pd.Series, default_date: str, dayfirst: bool | None = None) -> list[str]:
+    """Normalizes mixed/US/EU date columns to consistent ISO YYYY-MM-DD strings."""
+    if dayfirst is None:
+        dayfirst = detect_dayfirst(series)
     parsed = pd.to_datetime(series, format="mixed", dayfirst=dayfirst, errors="coerce")
     return [ts.strftime("%Y-%m-%d") if pd.notna(ts) else default_date for ts in parsed]
 
 
-def read_csv_resilient(file_path: str) -> pd.DataFrame:
-    """Reads CSV across encodings (UTF-8-SIG, UTF-8, CP1252, Latin1) and delimiters."""
+def detect_csv_config(file_path: str) -> tuple[str, str | None, list[str], pd.DataFrame]:
+    """Probes ONLY the first 100 rows to detect encoding, delimiter, and column headers in <1MB RAM."""
     encodings = ("utf-8-sig", "utf-8", "cp1252", "latin1")
     last_err = None
     for enc in encodings:
         try:
-            df = pd.read_csv(file_path, encoding=enc, on_bad_lines="skip")
+            sep = ","
+            df = pd.read_csv(file_path, encoding=enc, nrows=100, on_bad_lines="skip")
             if df.shape[1] == 1:
                 first_col = str(df.columns[0])
-                if any(delim in first_col for delim in (";", "\t", "|")):
-                    df_alt = pd.read_csv(file_path, encoding=enc, sep=None, engine="python", on_bad_lines="skip")
-                    if df_alt.shape[1] > 1:
-                        df = df_alt
+                for candidate_sep in (";", "\t", "|"):
+                    if candidate_sep in first_col:
+                        df_alt = pd.read_csv(file_path, encoding=enc, sep=candidate_sep, nrows=100, on_bad_lines="skip")
+                        if df_alt.shape[1] > 1:
+                            df = df_alt
+                            sep = candidate_sep
+                            break
             df = df.dropna(how="all")
             df = df.loc[:, ~df.columns.astype(str).str.match(r"^Unnamed:\s*\d+$")]
             df.columns = [str(c).strip() for c in df.columns]
             if df.empty or df.shape[1] == 0:
                 raise ValueError("CSV file contains no readable data rows.")
-            return df
+            return enc, sep, df.columns.tolist(), df
         except UnicodeDecodeError as ue:
             last_err = ue
             continue
@@ -322,6 +330,16 @@ def read_csv_resilient(file_path: str) -> pd.DataFrame:
             last_err = exc
             continue
     raise ValueError(f"Could not parse CSV file: {last_err}")
+
+
+def read_csv_resilient(file_path: str) -> pd.DataFrame:
+    """Compatibility helper to read smaller CSVs cleanly."""
+    enc, sep, _, _ = detect_csv_config(file_path)
+    df = pd.read_csv(file_path, encoding=enc, sep=sep, on_bad_lines="skip")
+    df = df.dropna(how="all")
+    df = df.loc[:, ~df.columns.astype(str).str.match(r"^Unnamed:\s*\d+$")]
+    df.columns = [str(c).strip() for c in df.columns]
+    return df
 
 
 def _find_financial_column(columns: list, keywords: tuple, exclude: tuple = ()) -> str | None:
@@ -335,19 +353,26 @@ def _find_financial_column(columns: list, keywords: tuple, exclude: tuple = ()) 
     return None
 
 
+def _clean_chunk(chunk: pd.DataFrame, valid_cols: list[str]) -> pd.DataFrame:
+    chunk = chunk.dropna(how="all")
+    chunk.columns = [str(c).strip() for c in chunk.columns]
+    keep_cols = [c for c in valid_cols if c in chunk.columns]
+    return chunk[keep_cols] if keep_cols else chunk
+
+
 def process_and_load_csv(file_path: str, user_id: int, file_id: int = None):
+    """Streams arbitrarily large CSVs in 2,000-row batches in constant low memory (~30MB RAM)."""
     db = SessionLocal()
     try:
-        df = read_csv_resilient(file_path)
-        original_cols = df.columns.tolist()
-        sample_rows = df.head(3).to_dict(orient="records")
+        enc, sep, original_cols, sample_df = detect_csv_config(file_path)
+        sample_rows = sample_df.head(3).to_dict(orient="records")
 
         ai_mapping = ask_llm_for_multilingual_mapping(original_cols, sample_rows)
 
-        # Fallback: if no total amount column exists (or unit price was mapped alongside quantity),
-        # compute line revenue = quantity * unit_price
+        # Determine whether unit_price * quantity revenue computation applies
         amount_norm = _norm(ai_mapping.get("amount") or "")
         is_unit_price_amount = amount_norm in {"price", "priceeach", "price_each", "unit_price", "unitprice", "preco", "prix", "preis"}
+        unit_price_col = None
         if (not ai_mapping.get("amount") or is_unit_price_amount) and ai_mapping.get("quantity"):
             unit_price_col = ai_mapping.get("amount") if is_unit_price_amount else _pick_best_column(
                 original_cols, set(),
@@ -355,16 +380,15 @@ def process_and_load_csv(file_path: str, user_id: int, file_id: int = None):
                 ("price", "preco", "prix", "preis"),
                 exclude_tokens=("msrp", "cost"),
             )
-            qty_col = ai_mapping.get("quantity")
-            if unit_price_col and qty_col:
-                qty_num = df[qty_col].apply(lambda v: parse_numeric(v, 0.0))
-                price_num = df[unit_price_col].apply(lambda v: parse_numeric(v, 0.0))
-                df["__computed_amount"] = qty_num * price_num
+            if unit_price_col:
                 ai_mapping["amount"] = "__computed_amount"
 
-        # --- Self-Healing ETL: Dynamic Unpivot for Wide Formats ---
+        # Determine whether dynamic unpivot applies for wide spreadsheets (detected once from sample_df)
+        is_wide_melt = False
+        value_vars = []
+        id_vars = []
         if not ai_mapping.get("amount"):
-            numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
+            numeric_cols = sample_df.select_dtypes(include=["number"]).columns.tolist()
             excluded_wide_tokens = (
                 "id", "number", "num", "no", "code", "zip", "postal", "phone",
                 "year", "month", "qtr", "quarter", "day", "week", "age",
@@ -375,23 +399,12 @@ def process_and_load_csv(file_path: str, user_id: int, file_id: int = None):
                 c for c in numeric_cols
                 if not any(tok in _norm(c) for tok in excluded_wide_tokens)
             ]
-
             if len(value_vars) > 1:
-                id_vars = [c for c in df.columns if c not in value_vars]
-                df = pd.melt(
-                    df,
-                    id_vars=id_vars,
-                    value_vars=value_vars,
-                    var_name="__melted_category",
-                    value_name="__melted_amount",
-                )
+                is_wide_melt = True
+                id_vars = [c for c in original_cols if c not in value_vars]
                 ai_mapping["amount"] = "__melted_amount"
                 ai_mapping["category"] = "__melted_category"
-
                 if not ai_mapping.get("date"):
-                    dates = pd.date_range(end=pd.Timestamp.today(), periods=90)
-                    df["__mock_date"] = np.random.choice(dates, len(df))
-                    df["__mock_date"] = pd.to_datetime(df["__mock_date"]).dt.strftime("%Y-%m-%d")
                     ai_mapping["date"] = "__mock_date"
 
         date_col = ai_mapping.get("date")
@@ -402,75 +415,113 @@ def process_and_load_csv(file_path: str, user_id: int, file_id: int = None):
         quantity_col = ai_mapping.get("quantity")
         remaining_col = ai_mapping.get("remaining")
 
+        dayfirst = (
+            detect_dayfirst(sample_df[date_col])
+            if date_col and date_col in sample_df.columns
+            else False
+        )
         default_date = datetime.today().strftime("%Y-%m-%d")
-        normalized_dates = (
-            normalize_date_series(df[date_col], default_date)
-            if date_col and date_col in df.columns
-            else [default_date] * len(df)
+
+        cost_col = _find_financial_column(original_cols, ("cost", "cogs", "expense", "expenses", "wholesale"))
+        net_col = _find_financial_column(original_cols, ("net_profit", "profit", "net_income", "earnings", "earning", "margin"))
+
+        total_rows_loaded = 0
+        chunk_iter = pd.read_csv(
+            file_path,
+            encoding=enc,
+            sep=sep,
+            chunksize=CSV_CHUNK_SIZE,
+            on_bad_lines="skip",
         )
 
-        # Identify explicit financial cost/profit columns using exact token matching (avoids false positives like 'internet')
-        cost_col = _find_financial_column(df.columns.tolist(), ("cost", "cogs", "expense", "expenses", "wholesale"))
-        net_col = _find_financial_column(df.columns.tolist(), ("net_profit", "profit", "net_income", "earnings", "earning", "margin"))
+        for raw_chunk in chunk_iter:
+            chunk = _clean_chunk(raw_chunk, original_cols)
+            if chunk.empty:
+                continue
 
-        raw_records = df.to_dict(orient="records")
-        db_records = []
+            if unit_price_col and quantity_col and unit_price_col in chunk.columns and quantity_col in chunk.columns:
+                qty_num = chunk[quantity_col].apply(lambda v: parse_numeric(v, 0.0))
+                price_num = chunk[unit_price_col].apply(lambda v: parse_numeric(v, 0.0))
+                chunk["__computed_amount"] = qty_num * price_num
 
-        for idx, raw_rec in enumerate(raw_records):
-            record = sanitize_json_value(raw_rec)
-            amount_val = parse_numeric(record.get(amount_col), 0.0) if amount_col else 0.0
+            if is_wide_melt:
+                chunk_value_vars = [c for c in value_vars if c in chunk.columns]
+                chunk_id_vars = [c for c in id_vars if c in chunk.columns]
+                if not chunk_value_vars:
+                    continue
+                chunk = pd.melt(
+                    chunk,
+                    id_vars=chunk_id_vars,
+                    value_vars=chunk_value_vars,
+                    var_name="__melted_category",
+                    value_name="__melted_amount",
+                )
+                if date_col == "__mock_date" and "__mock_date" not in chunk.columns:
+                    dates = pd.date_range(end=pd.Timestamp.today(), periods=90)
+                    chunk["__mock_date"] = pd.to_datetime(np.random.choice(dates, len(chunk))).strftime("%Y-%m-%d")
 
-            # Normalize cost & net_profit cleanly into raw_data
-            if cost_col and record.get(cost_col) is not None:
-                cost_num = parse_numeric(record.get(cost_col), None)
-                if cost_num is not None:
-                    record["cost"] = round(cost_num, 2)
-                else:
+            normalized_dates = (
+                normalize_date_series(chunk[date_col], default_date, dayfirst=dayfirst)
+                if date_col and date_col in chunk.columns
+                else [default_date] * len(chunk)
+            )
+
+            chunk_records = chunk.to_dict(orient="records")
+            db_records = []
+
+            for idx, raw_rec in enumerate(chunk_records):
+                record = sanitize_json_value(raw_rec)
+                amount_val = parse_numeric(record.get(amount_col), 0.0) if amount_col else 0.0
+
+                if cost_col and record.get(cost_col) is not None:
+                    cost_num = parse_numeric(record.get(cost_col), None)
+                    record["cost"] = round(cost_num if cost_num is not None else amount_val * 0.65, 2)
+                elif "cost" not in record:
                     record["cost"] = round(amount_val * 0.65, 2)
-            elif "cost" not in record or record.get("cost") is None:
-                record["cost"] = round(amount_val * 0.65, 2)
 
-            if net_col and record.get(net_col) is not None:
-                net_num = parse_numeric(record.get(net_col), None)
-                if net_num is not None:
-                    record["net_profit"] = round(net_num, 2)
-                else:
+                if net_col and record.get(net_col) is not None:
+                    net_num = parse_numeric(record.get(net_col), None)
+                    record["net_profit"] = round(net_num if net_num is not None else amount_val * 0.15, 2)
+                elif "net_profit" not in record:
                     record["net_profit"] = round(amount_val * 0.15, 2)
-            elif "net_profit" not in record or record.get("net_profit") is None:
-                record["net_profit"] = round(amount_val * 0.15, 2)
 
-            if quantity_col and quantity_col in record and "sold" not in record:
-                qty_val = parse_numeric(record.get(quantity_col), 0.0)
-                if qty_val > 0:
-                    record["sold"] = int(round(qty_val))
+                if quantity_col and quantity_col in record and "sold" not in record:
+                    qty_val = parse_numeric(record.get(quantity_col), 0.0)
+                    if qty_val > 0:
+                        record["sold"] = int(round(qty_val))
 
-            if remaining_col and remaining_col in record and "remaining" not in record:
-                rem_val = parse_numeric(record.get(remaining_col), None)
-                if rem_val is not None:
-                    record["remaining"] = max(0, int(round(rem_val)))
+                if remaining_col and remaining_col in record and "remaining" not in record:
+                    rem_val = parse_numeric(record.get(remaining_col), None)
+                    if rem_val is not None:
+                        record["remaining"] = max(0, int(round(rem_val)))
 
-            cat_val = record.get(category_col) if category_col else None
-            sku_val = record.get(sku_col) if sku_col else None
-            cust_val = record.get(customer_col) if customer_col else None
+                cat_val = record.get(category_col) if category_col else None
+                sku_val = record.get(sku_col) if sku_col else None
+                cust_val = record.get(customer_col) if customer_col else None
 
-            db_records.append({
-                "user_id": user_id,
-                "file_id": file_id,
-                "date": normalized_dates[idx],
-                "amount": round(amount_val, 2),
-                "category": str(cat_val).strip() if cat_val is not None and str(cat_val).strip() else "Uncategorized",
-                "product_sku": str(sku_val).strip() if sku_val is not None and str(sku_val).strip() else "UNKNOWN",
-                "customer_id": str(cust_val).strip() if cust_val is not None and str(cust_val).strip() else "1",
-                "raw_data": record,
-            })
+                db_records.append({
+                    "user_id": user_id,
+                    "file_id": file_id,
+                    "date": normalized_dates[idx],
+                    "amount": round(amount_val, 2),
+                    "category": str(cat_val).strip() if cat_val is not None and str(cat_val).strip() else "Uncategorized",
+                    "product_sku": str(sku_val).strip() if sku_val is not None and str(sku_val).strip() else "UNKNOWN",
+                    "customer_id": str(cust_val).strip() if cust_val is not None and str(cust_val).strip() else "1",
+                    "raw_data": record,
+                })
 
-        # Chunk bulk insert to stay well within Render free-tier memory and statement limits
-        chunk_size = 1000
-        for i in range(0, len(db_records), chunk_size):
-            db.bulk_insert_mappings(Transaction, db_records[i : i + chunk_size])
+            if db_records:
+                db.bulk_insert_mappings(Transaction, db_records)
+                total_rows_loaded += len(db_records)
+                if file_id is not None:
+                    db.query(FileRecord).filter(FileRecord.id == file_id).update({"rows_loaded": total_rows_loaded})
+                db.commit()
+                db.expunge_all()
 
-        db.commit()
-        return {"status": "Success", "rows_loaded": len(db_records), "detected_mapping": ai_mapping}
+        if total_rows_loaded == 0:
+            raise ValueError("CSV file contains no readable data rows.")
+
+        return {"status": "Success", "rows_loaded": total_rows_loaded, "detected_mapping": ai_mapping}
     except Exception as e:
         db.rollback()
         raise e
