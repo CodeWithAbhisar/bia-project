@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, Float, JSON, DateTime, func
+from sqlalchemy import create_engine, Column, Integer, String, Float, JSON, DateTime, Index, func
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime, timezone
@@ -42,6 +42,11 @@ class User(Base):
 
 class Transaction(Base):
     __tablename__ = "transactions"
+    __table_args__ = (
+        Index("ix_transactions_user_date", "user_id", "date"),
+        Index("ix_transactions_user_cat", "user_id", "category"),
+        Index("ix_transactions_user_file", "user_id", "file_id"),
+    )
     
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, index=True)
@@ -53,8 +58,14 @@ class Transaction(Base):
     category = Column(String, default="Uncategorized")
     product_sku = Column(String, default="UNKNOWN")
     customer_id = Column(String, default="1")
+
+    # Scalable Numeric Columns (enable instant SQL aggregation on 1M+ rows without JSON scans)
+    cost_amount = Column(Float, nullable=True)
+    net_profit_amount = Column(Float, nullable=True)
+    units_sold = Column(Integer, nullable=True)
+    stock_remaining = Column(Integer, nullable=True)
     
-    # The Schemaless Hybrid Column
+    # The Schemaless Hybrid Column (populated for smaller datasets; compact/null for bulk 1M+ uploads)
     raw_data = Column(JSON, nullable=True) 
 
 class FileRecord(Base):
@@ -126,12 +137,28 @@ try:
                 conn.exec_driver_sql("ALTER TABLE file_records ADD COLUMN error_message TEXT")
             if "rows_loaded" not in file_cols:
                 conn.exec_driver_sql("ALTER TABLE file_records ADD COLUMN rows_loaded INTEGER DEFAULT 0")
+            tx_cols = [r[1] for r in conn.exec_driver_sql("PRAGMA table_info(transactions)").fetchall()]
+            if "cost_amount" not in tx_cols:
+                conn.exec_driver_sql("ALTER TABLE transactions ADD COLUMN cost_amount FLOAT")
+            if "net_profit_amount" not in tx_cols:
+                conn.exec_driver_sql("ALTER TABLE transactions ADD COLUMN net_profit_amount FLOAT")
+            if "units_sold" not in tx_cols:
+                conn.exec_driver_sql("ALTER TABLE transactions ADD COLUMN units_sold INTEGER")
+            if "stock_remaining" not in tx_cols:
+                conn.exec_driver_sql("ALTER TABLE transactions ADD COLUMN stock_remaining INTEGER")
         else:
             conn.exec_driver_sql("ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW()")
             conn.exec_driver_sql("ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name VARCHAR")
             conn.exec_driver_sql("ALTER TABLE users ADD COLUMN IF NOT EXISTS company VARCHAR")
             conn.exec_driver_sql("ALTER TABLE file_records ADD COLUMN IF NOT EXISTS error_message VARCHAR")
             conn.exec_driver_sql("ALTER TABLE file_records ADD COLUMN IF NOT EXISTS rows_loaded INTEGER DEFAULT 0")
+            conn.exec_driver_sql("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS cost_amount DOUBLE PRECISION")
+            conn.exec_driver_sql("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS net_profit_amount DOUBLE PRECISION")
+            conn.exec_driver_sql("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS units_sold INTEGER")
+            conn.exec_driver_sql("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS stock_remaining INTEGER")
+        conn.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_transactions_user_date ON transactions (user_id, date)")
+        conn.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_transactions_user_cat ON transactions (user_id, category)")
+        conn.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_transactions_user_file ON transactions (user_id, file_id)")
 except Exception as e:
     print(f"Auto-migration notice: {e}")
 

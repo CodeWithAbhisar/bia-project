@@ -4,11 +4,13 @@ import re
 from datetime import date, datetime
 import numpy as np
 import pandas as pd
-from models.database import FileRecord, SessionLocal, Transaction
+import models.database as db_mod
+from models.database import FileRecord, Transaction
 from services.sarvam_client import generate_response
 
 TARGET_FIELDS = ("date", "amount", "category", "product_sku", "customer_id", "quantity", "remaining")
-CSV_CHUNK_SIZE = 2000
+CSV_CHUNK_SIZE = 10000
+RAW_DATA_ROW_LIMIT = 5000  # Store per-row JSON on first 5k rows; larger 100k-1M+ files use fast scalar columns
 
 
 def clean_json_response(raw_text: str) -> dict:
@@ -81,7 +83,6 @@ def fallback_heuristic_mapping(columns: list) -> dict:
     if mapping["date"]:
         used.add(mapping["date"])
 
-    # Detect wide multi-period sales columns (e.g., Jan_Sales, Feb_Sales, Mar_Sales)
     amount_scores = [
         (c, _score_column(
             c,
@@ -98,12 +99,8 @@ def fallback_heuristic_mapping(columns: list) -> dict:
         mapping["amount"] = top_amount_cols[0]
     elif len(top_amount_cols) == 1:
         mapping["amount"] = top_amount_cols[0]
-    # If >= 2 non-exact amount columns tie (wide pivot like Jan_Sales/Feb_Sales/Mar_Sales),
-    # leave mapping["amount"] = None so dynamic unpivot (pd.melt) aggregates all periods.
 
     if not mapping["amount"]:
-        # Allow unit price fallback only if there is no quantity column to multiply with,
-        # otherwise process_and_load_csv computes revenue = quantity * unit_price.
         has_qty = any(
             _score_column(c, ("quantityordered", "quantity_ordered", "qty_ordered", "units_sold", "sold", "quantity", "qty", "units"), ("quantity", "qty", "sold", "qtd", "cantidad", "units")) > 0
             for c in columns
@@ -182,13 +179,13 @@ CSV Columns: {columns}
 Sample Rows: {sanitize_json_value(sample_rows)}
 
 Map the CSV column names to these target database schema fields:
-- "date": Date or timestamp column (e.g., date, order_date, ORDERDATE, data, fecha, datum)
-- "amount": Total line/order revenue or sales value (prefer total sales/revenue over unit price, e.g., SALES, amount, revenue, preco, valor, total)
-- "category": Product category, product line, or department (e.g., category, PRODUCTLINE, categoria, department)
-- "product_sku": Product SKU, code, or item identifier (e.g., sku, PRODUCTCODE, product_id, item, product_name)
-- "customer_id": Customer ID, buyer identifier, or customer name (e.g., customer_id, CUSTOMERNAME, cliente, buyer)
-- "quantity": Units sold/ordered if present (e.g., QUANTITYORDERED, qty, quantity, sold, units)
-- "remaining": Remaining stock on hand if present (e.g., remaining, stock, inventory, on_hand)
+- "date": Date or timestamp column
+- "amount": Total line/order revenue or sales value (prefer total sales/revenue over unit price)
+- "category": Product category, product line, or department
+- "product_sku": Product SKU, code, or item identifier
+- "customer_id": Customer ID, buyer identifier, or customer name
+- "quantity": Units sold/ordered if present
+- "remaining": Remaining stock on hand if present
 
 Return ONLY a raw JSON object with these exact keys: "date", "amount", "category", "product_sku", "customer_id", "quantity", "remaining".
 Use the exact original CSV column name as the value, or null if no appropriate column exists.
@@ -245,7 +242,7 @@ def sanitize_json_value(val):
             return None
     except Exception:
         pass
-    return str(val) if not isinstance(val, str) else val
+    return str(val).replace("\x00", "") if not isinstance(val, str) else val.replace("\x00", "")
 
 
 def parse_numeric(val, default: float = 0.0) -> float:
@@ -272,6 +269,19 @@ def parse_numeric(val, default: float = 0.0) -> float:
         return default
 
 
+def _series_to_float(series: pd.Series, default: float = 0.0) -> pd.Series:
+    """Fast vectorized string/currency to float parser across an entire chunk Series."""
+    if pd.api.types.is_numeric_dtype(series):
+        out = pd.to_numeric(series, errors="coerce").replace([np.inf, -np.inf], np.nan)
+        return out.fillna(default).astype(float)
+    s = series.astype(str).str.strip()
+    is_paren = s.str.startswith("(") & s.str.endswith(")")
+    cleaned = s.str.replace(r"[^\d.\-]", "", regex=True)
+    nums = pd.to_numeric(cleaned, errors="coerce").replace([np.inf, -np.inf], np.nan)
+    nums = nums.where(~is_paren, -nums.abs())
+    return nums.fillna(default).astype(float)
+
+
 def detect_dayfirst(series: pd.Series) -> bool:
     """Detects DD/MM vs MM/DD convention once from sample rows for consistent chunk parsing."""
     non_null = series.dropna().astype(str).str.strip()
@@ -291,15 +301,15 @@ def detect_dayfirst(series: pd.Series) -> bool:
 
 
 def normalize_date_series(series: pd.Series, default_date: str, dayfirst: bool | None = None) -> list[str]:
-    """Normalizes mixed/US/EU date columns to consistent ISO YYYY-MM-DD strings."""
+    """Fast vectorized normalization of mixed/US/EU dates to ISO YYYY-MM-DD strings."""
     if dayfirst is None:
         dayfirst = detect_dayfirst(series)
     parsed = pd.to_datetime(series, format="mixed", dayfirst=dayfirst, errors="coerce")
-    return [ts.strftime("%Y-%m-%d") if pd.notna(ts) else default_date for ts in parsed]
+    return parsed.dt.strftime("%Y-%m-%d").fillna(default_date).tolist()
 
 
-def detect_csv_config(file_path: str) -> tuple[str, str | None, list[str], pd.DataFrame]:
-    """Probes ONLY the first 100 rows to detect encoding, delimiter, and column headers in <1MB RAM."""
+def detect_csv_config(file_path: str) -> tuple[str, str, list[str], pd.DataFrame]:
+    """Probes ONLY the first 100 rows to detect encoding, delimiter, and column headers."""
     encodings = ("utf-8-sig", "utf-8", "cp1252", "latin1")
     last_err = None
     for enc in encodings:
@@ -333,7 +343,6 @@ def detect_csv_config(file_path: str) -> tuple[str, str | None, list[str], pd.Da
 
 
 def read_csv_resilient(file_path: str) -> pd.DataFrame:
-    """Compatibility helper to read smaller CSVs cleanly."""
     enc, sep, _, _ = detect_csv_config(file_path)
     df = pd.read_csv(file_path, encoding=enc, sep=sep, on_bad_lines="skip")
     df = df.dropna(how="all")
@@ -360,16 +369,77 @@ def _clean_chunk(chunk: pd.DataFrame, valid_cols: list[str]) -> pd.DataFrame:
     return chunk[keep_cols] if keep_cols else chunk
 
 
+def _normalize_text_col(series: pd.Series, fallback: str) -> list[str]:
+    s = series.where(pd.notna(series), None)
+    out = []
+    for v in s.tolist():
+        if v is None:
+            out.append(fallback)
+        else:
+            sv = str(v).replace("\x00", "").strip()
+            out.append(sv if sv and sv.lower() != "nan" else fallback)
+    return out
+
+
+def _flush_batch(db, raw_conn, is_postgres: bool, rows_tuples: list, file_id: int | None, total_rows: int):
+    """Writes a vectorized batch via native PostgreSQL COPY FROM STDIN (or Core INSERT on SQLite)."""
+    if not rows_tuples:
+        return
+
+    if is_postgres and raw_conn is not None:
+        with raw_conn.cursor() as cur:
+            with cur.copy(
+                "COPY transactions "
+                "(user_id, file_id, date, amount, category, product_sku, customer_id, "
+                "cost_amount, net_profit_amount, units_sold, stock_remaining, raw_data) "
+                "FROM STDIN"
+            ) as copy:
+                for t in rows_tuples:
+                    copy.write_row(t)
+            if file_id is not None:
+                cur.execute(
+                    "UPDATE file_records SET rows_loaded = %s WHERE id = %s",
+                    (total_rows, file_id),
+                )
+        raw_conn.commit()
+    else:
+        dicts = [
+            {
+                "user_id": t[0],
+                "file_id": t[1],
+                "date": t[2],
+                "amount": t[3],
+                "category": t[4],
+                "product_sku": t[5],
+                "customer_id": t[6],
+                "cost_amount": t[7],
+                "net_profit_amount": t[8],
+                "units_sold": t[9],
+                "stock_remaining": t[10],
+                "raw_data": json.loads(t[11]) if t[11] is not None else None,
+            }
+            for t in rows_tuples
+        ]
+        db.bulk_insert_mappings(Transaction, dicts)
+        if file_id is not None:
+            db.query(FileRecord).filter(FileRecord.id == file_id).update({"rows_loaded": total_rows})
+        db.commit()
+        db.expunge_all()
+
+
 def process_and_load_csv(file_path: str, user_id: int, file_id: int = None):
-    """Streams arbitrarily large CSVs in 2,000-row batches in constant low memory (~30MB RAM)."""
-    db = SessionLocal()
+    """High-throughput vectorized streaming ETL capable of loading 1,000,000+ rows smoothly."""
+    db = db_mod.SessionLocal()
+    bind = db.get_bind()
+    is_postgres = "sqlite" not in str(bind.url)
+    raw_conn = bind.raw_connection() if is_postgres else None
+
     try:
         enc, sep, original_cols, sample_df = detect_csv_config(file_path)
         sample_rows = sample_df.head(3).to_dict(orient="records")
 
         ai_mapping = ask_llm_for_multilingual_mapping(original_cols, sample_rows)
 
-        # Determine whether unit_price * quantity revenue computation applies
         amount_norm = _norm(ai_mapping.get("amount") or "")
         is_unit_price_amount = amount_norm in {"price", "priceeach", "price_each", "unit_price", "unitprice", "preco", "prix", "preis"}
         unit_price_col = None
@@ -383,7 +453,6 @@ def process_and_load_csv(file_path: str, user_id: int, file_id: int = None):
             if unit_price_col:
                 ai_mapping["amount"] = "__computed_amount"
 
-        # Determine whether dynamic unpivot applies for wide spreadsheets (detected once from sample_df)
         is_wide_melt = False
         value_vars = []
         id_vars = []
@@ -432,6 +501,7 @@ def process_and_load_csv(file_path: str, user_id: int, file_id: int = None):
             sep=sep,
             chunksize=CSV_CHUNK_SIZE,
             on_bad_lines="skip",
+            low_memory=True,
         )
 
         for raw_chunk in chunk_iter:
@@ -440,9 +510,7 @@ def process_and_load_csv(file_path: str, user_id: int, file_id: int = None):
                 continue
 
             if unit_price_col and quantity_col and unit_price_col in chunk.columns and quantity_col in chunk.columns:
-                qty_num = chunk[quantity_col].apply(lambda v: parse_numeric(v, 0.0))
-                price_num = chunk[unit_price_col].apply(lambda v: parse_numeric(v, 0.0))
-                chunk["__computed_amount"] = qty_num * price_num
+                chunk["__computed_amount"] = _series_to_float(chunk[quantity_col], 0.0) * _series_to_float(chunk[unit_price_col], 0.0)
 
             if is_wide_melt:
                 chunk_value_vars = [c for c in value_vars if c in chunk.columns]
@@ -460,63 +528,82 @@ def process_and_load_csv(file_path: str, user_id: int, file_id: int = None):
                     dates = pd.date_range(end=pd.Timestamp.today(), periods=90)
                     chunk["__mock_date"] = pd.to_datetime(np.random.choice(dates, len(chunk))).strftime("%Y-%m-%d")
 
-            normalized_dates = (
+            n = len(chunk)
+            dates_list = (
                 normalize_date_series(chunk[date_col], default_date, dayfirst=dayfirst)
                 if date_col and date_col in chunk.columns
-                else [default_date] * len(chunk)
+                else [default_date] * n
             )
+            amounts_s = _series_to_float(chunk[amount_col], 0.0).round(2) if amount_col and amount_col in chunk.columns else pd.Series(0.0, index=chunk.index)
+            amounts_list = amounts_s.tolist()
 
-            chunk_records = chunk.to_dict(orient="records")
-            db_records = []
+            if cost_col and cost_col in chunk.columns:
+                cost_s = _series_to_float(chunk[cost_col], np.nan)
+                cost_s = cost_s.where(cost_s.notna(), amounts_s * 0.65).round(2)
+            else:
+                cost_s = (amounts_s * 0.65).round(2)
+            cost_list = cost_s.tolist()
 
-            for idx, raw_rec in enumerate(chunk_records):
-                record = sanitize_json_value(raw_rec)
-                amount_val = parse_numeric(record.get(amount_col), 0.0) if amount_col else 0.0
+            if net_col and net_col in chunk.columns:
+                net_s = _series_to_float(chunk[net_col], np.nan)
+                net_s = net_s.where(net_s.notna(), amounts_s * 0.15).round(2)
+            else:
+                net_s = (amounts_s * 0.15).round(2)
+            net_list = net_s.tolist()
 
-                if cost_col and record.get(cost_col) is not None:
-                    cost_num = parse_numeric(record.get(cost_col), None)
-                    record["cost"] = round(cost_num if cost_num is not None else amount_val * 0.65, 2)
-                elif "cost" not in record:
-                    record["cost"] = round(amount_val * 0.65, 2)
+            if quantity_col and quantity_col in chunk.columns:
+                qty_s = _series_to_float(chunk[quantity_col], 0.0).round().astype(int)
+                sold_list = [int(q) if q > 0 else None for q in qty_s.tolist()]
+            else:
+                sold_list = [None] * n
 
-                if net_col and record.get(net_col) is not None:
-                    net_num = parse_numeric(record.get(net_col), None)
-                    record["net_profit"] = round(net_num if net_num is not None else amount_val * 0.15, 2)
-                elif "net_profit" not in record:
-                    record["net_profit"] = round(amount_val * 0.15, 2)
+            if remaining_col and remaining_col in chunk.columns:
+                rem_s = _series_to_float(chunk[remaining_col], -1.0)
+                rem_list = [max(0, int(round(r))) if r >= 0 else None for r in rem_s.tolist()]
+            else:
+                rem_list = [None] * n
 
-                if quantity_col and quantity_col in record and "sold" not in record:
-                    qty_val = parse_numeric(record.get(quantity_col), 0.0)
-                    if qty_val > 0:
-                        record["sold"] = int(round(qty_val))
+            cat_list = _normalize_text_col(chunk[category_col], "Uncategorized") if category_col and category_col in chunk.columns else ["Uncategorized"] * n
+            sku_list = _normalize_text_col(chunk[sku_col], "UNKNOWN") if sku_col and sku_col in chunk.columns else ["UNKNOWN"] * n
+            cust_list = _normalize_text_col(chunk[customer_col], "1") if customer_col and customer_col in chunk.columns else ["1"] * n
 
-                if remaining_col and remaining_col in record and "remaining" not in record:
-                    rem_val = parse_numeric(record.get(remaining_col), None)
-                    if rem_val is not None:
-                        record["remaining"] = max(0, int(round(rem_val)))
+            # Store full per-row raw_data JSON only up to RAW_DATA_ROW_LIMIT so 100k-1M+ row datasets
+            # don't exhaust database storage or serialize millions of redundant string blobs.
+            include_raw = total_rows_loaded < RAW_DATA_ROW_LIMIT
+            raw_json_strs = [None] * n
+            if include_raw:
+                rows_to_keep = min(n, RAW_DATA_ROW_LIMIT - total_rows_loaded)
+                raw_dicts = chunk.iloc[:rows_to_keep].to_dict(orient="records")
+                for i in range(rows_to_keep):
+                    rec = sanitize_json_value(raw_dicts[i])
+                    rec["cost"] = cost_list[i]
+                    rec["net_profit"] = net_list[i]
+                    if sold_list[i] is not None:
+                        rec["sold"] = sold_list[i]
+                    if rem_list[i] is not None:
+                        rec["remaining"] = rem_list[i]
+                    raw_json_strs[i] = json.dumps(rec, allow_nan=False)
 
-                cat_val = record.get(category_col) if category_col else None
-                sku_val = record.get(sku_col) if sku_col else None
-                cust_val = record.get(customer_col) if customer_col else None
+            batch_tuples = [
+                (
+                    user_id,
+                    file_id,
+                    dates_list[i],
+                    float(amounts_list[i]),
+                    cat_list[i],
+                    sku_list[i],
+                    cust_list[i],
+                    float(cost_list[i]),
+                    float(net_list[i]),
+                    sold_list[i],
+                    rem_list[i],
+                    raw_json_strs[i],
+                )
+                for i in range(n)
+            ]
 
-                db_records.append({
-                    "user_id": user_id,
-                    "file_id": file_id,
-                    "date": normalized_dates[idx],
-                    "amount": round(amount_val, 2),
-                    "category": str(cat_val).strip() if cat_val is not None and str(cat_val).strip() else "Uncategorized",
-                    "product_sku": str(sku_val).strip() if sku_val is not None and str(sku_val).strip() else "UNKNOWN",
-                    "customer_id": str(cust_val).strip() if cust_val is not None and str(cust_val).strip() else "1",
-                    "raw_data": record,
-                })
-
-            if db_records:
-                db.bulk_insert_mappings(Transaction, db_records)
-                total_rows_loaded += len(db_records)
-                if file_id is not None:
-                    db.query(FileRecord).filter(FileRecord.id == file_id).update({"rows_loaded": total_rows_loaded})
-                db.commit()
-                db.expunge_all()
+            total_rows_loaded += n
+            _flush_batch(db, raw_conn, is_postgres, batch_tuples, file_id, total_rows_loaded)
 
         if total_rows_loaded == 0:
             raise ValueError("CSV file contains no readable data rows.")
@@ -524,6 +611,16 @@ def process_and_load_csv(file_path: str, user_id: int, file_id: int = None):
         return {"status": "Success", "rows_loaded": total_rows_loaded, "detected_mapping": ai_mapping}
     except Exception as e:
         db.rollback()
+        if raw_conn is not None:
+            try:
+                raw_conn.rollback()
+            except Exception:
+                pass
         raise e
     finally:
+        if raw_conn is not None:
+            try:
+                raw_conn.close()
+            except Exception:
+                pass
         db.close()

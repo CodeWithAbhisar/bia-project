@@ -695,12 +695,30 @@ export default function App() {
     setUploadError("");
     setUploadProgress({ pct: 2, label: `Preparing ${file.name}...` });
     const config = { headers: { Authorization: `Bearer ${token}` } };
-    const CHUNK_SIZE = 1536 * 1024; // 1.5 MB chunks stay well under Vercel's 4.5 MB proxy cap
+    const CHUNK_SIZE = 2 * 1024 * 1024; // 2 MB chunks stay safely below Vercel's 4.5 MB cap
 
     try {
       let uploadedFileId: number | undefined;
+      let payloadBlob: Blob = file;
+      let isGzip = false;
 
-      if (file.size <= CHUNK_SIZE) {
+      // Client-side gzip compression shrinks 100MB+ 1M-row CSVs ~5-10x before upload
+      if (file.size > 512 * 1024 && typeof CompressionStream !== "undefined") {
+        try {
+          setUploadProgress({ pct: 5, label: `Compressing ${(file.size / (1024 * 1024)).toFixed(1)} MB dataset...` });
+          const compressedStream = file.stream().pipeThrough(new CompressionStream("gzip"));
+          const compressedBlob = await new Response(compressedStream).blob();
+          if (compressedBlob.size > 0 && compressedBlob.size < file.size) {
+            payloadBlob = compressedBlob;
+            isGzip = true;
+          }
+        } catch {
+          payloadBlob = file;
+          isGzip = false;
+        }
+      }
+
+      if (!isGzip && payloadBlob.size <= CHUNK_SIZE) {
         setUploadProgress({ pct: 40, label: "Uploading dataset..." });
         const formData = new FormData();
         formData.append("file", file);
@@ -709,39 +727,67 @@ export default function App() {
       } else {
         const initRes = await axios.post(
           API_BASE + "/api/upload/init",
-          { filename: file.name, total_size: file.size },
+          { filename: file.name, total_size: payloadBlob.size, is_gzip: isGzip },
           config
         );
         const uploadId = initRes.data.upload_id;
-        const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+        const totalChunks = Math.ceil(payloadBlob.size / CHUNK_SIZE);
+        let completedChunks = 0;
 
-        for (let idx = 0; idx < totalChunks; idx++) {
+        const uploadChunkWithRetry = async (idx: number) => {
           const start = idx * CHUNK_SIZE;
-          const end = Math.min(file.size, start + CHUNK_SIZE);
-          const blob = file.slice(start, end);
-          const chunkForm = new FormData();
-          chunkForm.append("upload_id", uploadId);
-          chunkForm.append("chunk_index", String(idx));
-          chunkForm.append("chunk", blob, `${file.name}.part${idx}`);
+          const end = Math.min(payloadBlob.size, start + CHUNK_SIZE);
+          const blob = payloadBlob.slice(start, end);
 
-          await axios.post(API_BASE + "/api/upload/chunk", chunkForm, config);
-          const pct = Math.min(95, Math.round(((idx + 1) / totalChunks) * 90));
-          setUploadProgress({
-            pct,
-            label: `Uploading chunk ${idx + 1} of ${totalChunks} (${pct}%)...`,
-          });
-        }
+          let lastErr: any;
+          for (let attempt = 1; attempt <= 3; attempt++) {
+            try {
+              const chunkForm = new FormData();
+              chunkForm.append("upload_id", uploadId);
+              chunkForm.append("chunk_index", String(idx));
+              chunkForm.append("chunk", blob, `${file.name}.part${idx}`);
+              await axios.post(API_BASE + "/api/upload/chunk", chunkForm, {
+                ...config,
+                timeout: 60000,
+              });
+              completedChunks += 1;
+              const pct = Math.min(92, 10 + Math.round((completedChunks / totalChunks) * 82));
+              setUploadProgress({
+                pct,
+                label: `Uploading chunk ${completedChunks} of ${totalChunks} (${pct}%)...`,
+              });
+              return;
+            } catch (err: any) {
+              lastErr = err;
+              if (attempt < 3) {
+                await new Promise((r) => setTimeout(r, attempt * 1000));
+              }
+            }
+          }
+          throw lastErr;
+        };
 
-        setUploadProgress({ pct: 95, label: "Finalizing file for ETL pipeline..." });
+        // Upload up to 2 chunks concurrently with idempotent per-chunk slots & retries
+        const concurrency = Math.min(2, totalChunks);
+        let nextIndex = 0;
+        const workers = Array.from({ length: concurrency }, async () => {
+          while (nextIndex < totalChunks) {
+            const current = nextIndex++;
+            await uploadChunkWithRetry(current);
+          }
+        });
+        await Promise.all(workers);
+
+        setUploadProgress({ pct: 95, label: "Assembling file for high-speed ETL..." });
         const completeRes = await axios.post(
           API_BASE + "/api/upload/complete",
-          { upload_id: uploadId, filename: file.name },
+          { upload_id: uploadId, filename: file.name, is_gzip: isGzip, total_chunks: totalChunks },
           config
         );
         uploadedFileId = completeRes.data?.file_id;
       }
 
-      setUploadProgress({ pct: 98, label: "Running streaming ETL pipeline..." });
+      setUploadProgress({ pct: 98, label: "Running high-speed streaming ETL pipeline..." });
 
       // Reset upload inputs immediately
       setFile(null);
@@ -749,15 +795,17 @@ export default function App() {
       if (fileInput) fileInput.value = "";
       setChatLog([]);
 
-      // Poll specifically for this uploaded file while rows continue loading (up to 15 mins max)
+      // Poll specifically for this uploaded file while rows continue loading (up to 30 mins max)
       let pollCount = 0;
       let lastRowsLoaded = -1;
       let stagnantPolls = 0;
+      let consecutiveErrors = 0;
 
       const pollInterval = setInterval(async () => {
         pollCount += 1;
         try {
           const res = await axios.get(API_BASE + "/api/user/profile", config);
+          consecutiveErrors = 0;
           setUserProfile(res.data);
 
           const targetFile = uploadedFileId
@@ -780,11 +828,11 @@ export default function App() {
               pct: 99,
               label: currentRows > 0
                 ? `Ingesting records... ${currentRows.toLocaleString()} rows loaded`
-                : "Analyzing schema and preparing ETL stream...",
+                : "Analyzing schema and preparing high-speed ETL stream...",
             });
           }
 
-          if (!stillProcessing || pollCount >= 450 || stagnantPolls >= 90) {
+          if (!stillProcessing || pollCount >= 900 || stagnantPolls >= 120) {
             clearInterval(pollInterval);
             setLoading(false);
             setUploadProgress(null);
@@ -795,7 +843,7 @@ export default function App() {
               setStreamToast({ message: `❌ ${reason}`, type: "warning" });
               setTimeout(() => setStreamToast(null), 6000);
             } else if (stillProcessing) {
-              setUploadError("Large file ingestion is continuing in the background. Check Account & Files for live progress.");
+              setUploadError("Large dataset ingestion is continuing in the background. Check Account & Files for live progress.");
             } else {
               const rowsMsg = currentRows > 0 ? ` (${currentRows.toLocaleString()} rows)` : "";
               setStreamToast({ message: `✅ Dataset processed successfully${rowsMsg}! Dashboard updated.`, type: "success" });
@@ -805,9 +853,12 @@ export default function App() {
             }
           }
         } catch {
-          clearInterval(pollInterval);
-          setLoading(false);
-          setUploadProgress(null);
+          consecutiveErrors += 1;
+          if (consecutiveErrors >= 5) {
+            clearInterval(pollInterval);
+            setLoading(false);
+            setUploadProgress(null);
+          }
         }
       }, 2000);
     } catch (e: any) {

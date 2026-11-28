@@ -121,20 +121,18 @@ def get_bam_alerts(
     """Calculates live operational alerts and retrieves user notifications."""
     alerts = []
     
-    # Check 1: Low / Out of stock inventory categories
-    categories = db.query(
-        Transaction.category,
-        func.count(Transaction.id).label('sold')
-    ).filter(Transaction.user_id == user_id).group_by(Transaction.category).all()
-    
-    for cat in categories:
-        # Default estimated stock is 500 minus sold
-        remaining = max(0, 500 - cat.sold)
+    # Check 1: Low / Out of stock inventory categories (reuse shared inventory service)
+    from api.inventory import get_inventory
+    inv_items = get_inventory(db=db, user_id=user_id).get("inventory", [])
+
+    for item in inv_items:
+        cat_name = item.get("category", "Uncategorized")
+        remaining = int(item.get("remaining", 0))
         if remaining <= 0:
             alerts.append({
-                "id": f"stockout-{cat.category}",
-                "title": f"Critical Stockout: {cat.category}",
-                "message": f"Inventory for '{cat.category}' is completely exhausted (0 units left). Immediately restock supplier orders.",
+                "id": f"stockout-{cat_name}",
+                "title": f"Critical Stockout: {cat_name}",
+                "message": f"Inventory for '{cat_name}' is completely exhausted (0 units left). Immediately restock supplier orders.",
                 "severity": "critical",
                 "metric_type": "inventory",
                 "created_at": datetime.now(timezone.utc).isoformat(),
@@ -142,9 +140,9 @@ def get_bam_alerts(
             })
         elif remaining < 50:
             alerts.append({
-                "id": f"lowstock-{cat.category}",
-                "title": f"Low Stock Warning: {cat.category}",
-                "message": f"Only {remaining} units remaining in '{cat.category}'. Buffer stock limit breached.",
+                "id": f"lowstock-{cat_name}",
+                "title": f"Low Stock Warning: {cat_name}",
+                "message": f"Only {remaining} units remaining in '{cat_name}'. Buffer stock limit breached.",
                 "severity": "warning",
                 "metric_type": "inventory",
                 "created_at": datetime.now(timezone.utc).isoformat(),
@@ -525,17 +523,22 @@ def get_drilldown_analysis(
     db: Session = Depends(get_db), 
     user_id: int = Depends(get_current_user_id)
 ):
-    """Provides deep investigative drill-down into specific categories or dates to identify root causes."""
+    """Provides SQL-aggregated investigative drill-down even across 1M+ row datasets."""
     query = db.query(Transaction).filter(Transaction.user_id == user_id)
-    
+
     if category and category.lower() != "all":
         query = query.filter(Transaction.category == category)
     if date:
         query = query.filter(Transaction.date == date)
-        
-    records = query.order_by(desc(Transaction.amount)).all()
-    
-    if not records:
+
+    agg = query.with_entities(
+        func.count(Transaction.id),
+        func.sum(Transaction.amount),
+    ).first()
+    total_records = int(agg[0] or 0) if agg else 0
+    total_rev = float(agg[1] or 0.0) if agg else 0.0
+
+    if total_records == 0:
         return {
             "category": category,
             "date": date,
@@ -544,39 +547,41 @@ def get_drilldown_analysis(
             "transactions": [],
             "root_cause_summary": "No transactions found matching this drill-down filter."
         }
-        
-    total_rev = sum(float(r.amount) for r in records)
-    avg_order = total_rev / len(records)
-    
-    # Group by customer and SKU to isolate primary variance drivers
-    sku_counts = {}
-    customer_revs = {}
-    for r in records:
-        sku = r.product_sku or "UNKNOWN"
-        cust = r.customer_id or "1"
-        sku_counts[sku] = sku_counts.get(sku, 0) + 1
-        customer_revs[cust] = customer_revs.get(cust, 0.0) + float(r.amount)
-        
-    top_sku = max(sku_counts, key=sku_counts.get) if sku_counts else "N/A"
-    top_cust = max(customer_revs, key=customer_revs.get) if customer_revs else "N/A"
-    top_cust_share = round((customer_revs[top_cust] / total_rev) * 100, 1) if total_rev > 0 and top_cust in customer_revs else 0
-    
-    # Root Cause Diagnostic logic
+
+    avg_order = total_rev / total_records
+
+    top_sku_row = query.with_entities(
+        Transaction.product_sku,
+        func.count(Transaction.id).label("cnt"),
+    ).group_by(Transaction.product_sku).order_by(desc(func.count(Transaction.id))).first()
+    top_sku = (top_sku_row[0] or "UNKNOWN") if top_sku_row else "N/A"
+    top_sku_count = int(top_sku_row[1] or 0) if top_sku_row else 0
+
+    top_cust_row = query.with_entities(
+        Transaction.customer_id,
+        func.sum(Transaction.amount).label("cust_rev"),
+    ).group_by(Transaction.customer_id).order_by(desc(func.sum(Transaction.amount))).first()
+    top_cust = (top_cust_row[0] or "1") if top_cust_row else "N/A"
+    top_cust_rev = float(top_cust_row[1] or 0.0) if top_cust_row else 0.0
+    top_cust_share = round((top_cust_rev / total_rev) * 100, 1) if total_rev > 0 else 0
+
     root_cause_points = [
-        f"Analyzed {len(records)} transaction records totaling ${total_rev:,.2f} (Avg order size: ${avg_order:,.2f}).",
-        f"Primary product driver: SKU '{top_sku}' accounts for {sku_counts.get(top_sku, 0)} orders.",
-        f"Customer concentration: Customer ID #{top_cust} contributed ${customer_revs.get(top_cust, 0):,.2f} ({top_cust_share}% of total segment volume)."
+        f"Analyzed {total_records:,} transaction records totaling ${total_rev:,.2f} (Avg order size: ${avg_order:,.2f}).",
+        f"Primary product driver: SKU '{top_sku}' accounts for {top_sku_count:,} orders.",
+        f"Customer concentration: Customer ID #{top_cust} contributed ${top_cust_rev:,.2f} ({top_cust_share}% of total segment volume)."
     ]
-    
+
     if top_cust_share > 45:
         root_cause_points.append(f"⚠️ High customer dependency: Customer #{top_cust} dominates this segment. Diversification recommended.")
     else:
         root_cause_points.append("✅ Healthy customer distribution: No single buyer dominates segment performance.")
 
+    top_records = query.order_by(desc(Transaction.amount)).limit(50).all()
+
     return {
         "category": category,
         "date": date,
-        "total_records": len(records),
+        "total_records": total_records,
         "total_revenue": round(total_rev, 2),
         "average_order": round(avg_order, 2),
         "top_sku": top_sku,
@@ -592,7 +597,7 @@ def get_drilldown_analysis(
                 "customer_id": r.customer_id,
                 "source": (r.raw_data or {}).get("source", "Standard")
             }
-            for r in records[:50] # Top 50 records for smooth UI rendering
+            for r in top_records
         ]
     }
 

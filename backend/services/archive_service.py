@@ -20,19 +20,19 @@ MAX_ARCHIVE_ROWS = 20000
 
 
 def _stream_snapshot(query):
-    total_count = 0
+    total_count = query.count()
     payload = []
-    for tx in query.execution_options(stream_results=True).yield_per(2000):
-        total_count += 1
-        if len(payload) < MAX_ARCHIVE_ROWS:
-            payload.append({
-                "date": tx.date,
-                "amount": tx.amount,
-                "category": tx.category,
-                "product_sku": tx.product_sku,
-                "customer_id": tx.customer_id,
-                "raw_data": tx.raw_data,
-            })
+    if total_count == 0:
+        return 0, payload
+    for tx in query.limit(MAX_ARCHIVE_ROWS).all():
+        payload.append({
+            "date": tx.date,
+            "amount": tx.amount,
+            "category": tx.category,
+            "product_sku": tx.product_sku,
+            "customer_id": tx.customer_id,
+            "raw_data": tx.raw_data,
+        })
     return total_count, payload
 
 

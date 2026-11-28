@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from typing import Optional
 import os
 import re
+import gzip
 import shutil
 import time
 from dotenv import load_dotenv
@@ -81,12 +82,14 @@ def background_process_file(file_location: str, user_id: int, file_id: int, file
 
 
 def _cleanup_stale_part_files():
-    """Removes abandoned chunked upload staging files older than 2 hours."""
+    """Removes abandoned chunked upload staging files/dirs older than 2 hours."""
     now = time.time()
     try:
         for entry in os.listdir("."):
-            if entry.startswith("temp_upload_") and entry.endswith(".part"):
-                if now - os.path.getmtime(entry) > 7200:
+            if entry.startswith("temp_upload_") and now - os.path.getmtime(entry) > 7200:
+                if os.path.isdir(entry):
+                    shutil.rmtree(entry, ignore_errors=True)
+                else:
                     os.remove(entry)
     except Exception:
         pass
@@ -140,9 +143,8 @@ def init_chunked_upload(req: dict, user_id: int = Depends(get_current_user_id)):
         raise HTTPException(status_code=400, detail="Uploaded file is empty.")
 
     upload_id = uuid.uuid4().hex
-    part_path = f"temp_upload_{user_id}_{upload_id}.part"
-    with open(part_path, "wb"):
-        pass
+    stage_dir = f"temp_upload_{user_id}_{upload_id}"
+    os.makedirs(stage_dir, exist_ok=True)
     return {"upload_id": upload_id}
 
 
@@ -153,14 +155,18 @@ def upload_file_chunk(
     chunk: UploadFile = File(...),
     user_id: int = Depends(get_current_user_id),
 ):
-    if not re.fullmatch(r"[a-fA-F0-9]{16,64}", upload_id):
+    if not re.fullmatch(r"[a-fA-F0-9]{16,64}", upload_id) or chunk_index < 0:
         raise HTTPException(status_code=400, detail="Invalid upload session.")
-    part_path = f"temp_upload_{user_id}_{upload_id}.part"
-    if not os.path.exists(part_path):
+    stage_dir = f"temp_upload_{user_id}_{upload_id}"
+    if not os.path.isdir(stage_dir):
         raise HTTPException(status_code=404, detail="Upload session expired or not found.")
 
-    with open(part_path, "ab") as dest:
+    # Idempotent per-chunk write: retries overwrite the exact chunk slot safely
+    chunk_path = os.path.join(stage_dir, f"chunk_{chunk_index:06d}.part")
+    tmp_chunk_path = f"{chunk_path}.tmp"
+    with open(tmp_chunk_path, "wb") as dest:
         shutil.copyfileobj(chunk.file, dest, length=65536)
+    os.replace(tmp_chunk_path, chunk_path)
 
     return {"status": "received", "chunk_index": chunk_index}
 
@@ -174,18 +180,51 @@ def complete_chunked_upload(
 ):
     upload_id = str(req.get("upload_id") or "")
     filename = str(req.get("filename") or "dataset.csv").strip()
+    is_gzip = bool(req.get("is_gzip", False))
+    expected_chunks = req.get("total_chunks")
+
     if not re.fullmatch(r"[a-fA-F0-9]{16,64}", upload_id):
         raise HTTPException(status_code=400, detail="Invalid upload session.")
     if not filename.lower().endswith(('.csv', '.pdf', '.txt')):
         raise HTTPException(status_code=400, detail="Unsupported file format.")
 
-    part_path = f"temp_upload_{user_id}_{upload_id}.part"
-    if not os.path.exists(part_path):
-        raise HTTPException(status_code=404, detail="Assembled upload file not found.")
+    stage_dir = f"temp_upload_{user_id}_{upload_id}"
+    if not os.path.isdir(stage_dir):
+        raise HTTPException(status_code=404, detail="Upload staging directory not found.")
+
+    part_files = sorted(f for f in os.listdir(stage_dir) if f.startswith("chunk_") and f.endswith(".part"))
+    if not part_files or (expected_chunks is not None and len(part_files) != int(expected_chunks)):
+        shutil.rmtree(stage_dir, ignore_errors=True)
+        raise HTTPException(status_code=400, detail="Upload incomplete: missing one or more file chunks.")
 
     safe_filename = "".join(c for c in filename if c.isalnum() or c in "._-")
     final_path = f"temp_{uuid.uuid4().hex}_{safe_filename}"
-    os.replace(part_path, final_path)
+
+    try:
+        if is_gzip:
+            gz_path = f"{final_path}.gz"
+            with open(gz_path, "wb") as gz_out:
+                for pf in part_files:
+                    with open(os.path.join(stage_dir, pf), "rb") as src:
+                        shutil.copyfileobj(src, gz_out, length=65536)
+            shutil.rmtree(stage_dir, ignore_errors=True)
+
+            with gzip.open(gz_path, "rb") as gz_in, open(final_path, "wb") as raw_out:
+                shutil.copyfileobj(gz_in, raw_out, length=65536)
+            os.remove(gz_path)
+        else:
+            with open(final_path, "wb") as raw_out:
+                for pf in part_files:
+                    with open(os.path.join(stage_dir, pf), "rb") as src:
+                        shutil.copyfileobj(src, raw_out, length=65536)
+            shutil.rmtree(stage_dir, ignore_errors=True)
+    except Exception as exc:
+        shutil.rmtree(stage_dir, ignore_errors=True)
+        for p in (final_path, f"{final_path}.gz"):
+            if os.path.exists(p):
+                os.remove(p)
+        raise HTTPException(status_code=400, detail=f"Failed to assemble uploaded file: {exc}")
+
     return _enqueue_uploaded_file(final_path, filename, user_id, background_tasks, db)
 
 
